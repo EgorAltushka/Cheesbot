@@ -4,32 +4,17 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>Шахматный Анализатор Pro</title>
-
-<!-- 1. Библиотека для логики шахмат -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
-
-<!-- 2. Стили и скрипт доски cm-chessboard -->
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cm-chessboard@8/assets/chessboard.css">
-<script type="module">
-  import { Chessboard, FEN, ARROW_TYPE } from 'https://cdn.jsdelivr.net/npm/cm-chessboard@8/src/Chessboard.js';
-  // Экспортируем в глобальную область для использования в основном скрипте
-  window.Chessboard = Chessboard;
-  window.FEN = FEN;
-  window.ARROW_TYPE = ARROW_TYPE;
-  window.dispatchEvent(new Event('cmReady'));
-</script>
-
 <style>
   :root {
-    --board-size: min(92vw, 520px);
+    --board-size: min(92vw, 500px);
+    --sq-size: calc(var(--board-size) / 8);
     --primary: #7fa650;
     --primary-hover: #6d9144;
-    --bg-dark: #1e1e24;
     --panel-bg: #2b2b33;
     --text-main: #ececec;
     --text-muted: #a0a0a0;
     --border-color: #3d3d47;
-    --accent: #00e676;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -45,13 +30,7 @@
   }
   h1 { font-size: 20px; margin-bottom: 12px; color: #f0d9b5; letter-spacing: 0.5px; }
 
-  .main-container {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-    width: 100%;
-    max-width: var(--board-size);
-  }
+  .main-container { display: flex; flex-direction: column; gap: 16px; width: 100%; max-width: var(--board-size); }
 
   /* Панель управления */
   .control-panel {
@@ -65,76 +44,42 @@
     border: 1px solid var(--border-color);
   }
 
-  .panel-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .panel-label {
-    font-size: 13px;
-    color: var(--text-muted);
-    width: 100%;
-    text-align: center;
-    margin-bottom: 2px;
-  }
+  .panel-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: center; }
+  .panel-label { font-size: 13px; color: var(--text-muted); width: 100%; text-align: center; margin-bottom: 2px; }
 
   /* Слайдер Elo */
-  .elo-slider-wrap {
-    display: flex;
-    flex-direction: column;
-    width: 100%;
-    gap: 6px;
-  }
+  .elo-slider-wrap { display: flex; flex-direction: column; width: 100%; gap: 6px; }
   .elo-slider-wrap input[type=range] {
-    -webkit-appearance: none;
-    width: 100%;
-    height: 8px;
-    border-radius: 4px;
+    -webkit-appearance: none; width: 100%; height: 8px; border-radius: 4px;
     background: linear-gradient(to right, #4a4a55 0%, var(--primary) 50%, #f44336 100%);
     outline: none;
   }
   .elo-slider-wrap input[type=range]::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    background: #fff;
-    cursor: pointer;
-    box-shadow: 0 0 8px rgba(0,0,0,0.3);
+    -webkit-appearance: none; width: 20px; height: 20px; border-radius: 50%;
+    background: #fff; cursor: pointer; box-shadow: 0 0 8px rgba(0,0,0,0.3);
   }
-  .elo-labels {
-    display: flex;
-    justify-content: space-between;
-    font-size: 12px;
-    color: var(--text-muted);
+  .elo-labels { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-muted); }
+  #elo-value { font-weight: bold; color: var(--primary); font-size: 16px; text-align: center; }
+
+  /* Рекомендуемый Elo */
+  .auto-elo-box {
+    display: flex; align-items: center; justify-content: space-between;
+    background: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px;
+    font-size: 14px; border: 1px solid var(--border-color);
   }
-  #elo-value {
-    font-weight: bold;
-    color: var(--accent);
-    font-size: 16px;
-    text-align: center;
-  }
+  .auto-elo-box span { color: #00e676; font-weight: bold; }
+  .switch { position: relative; display: inline-block; width: 40px; height: 22px; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #4a4a55; transition: .4s; border-radius: 34px; }
+  .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+  input:checked + .slider { background-color: var(--primary); }
+  input:checked + .slider:before { transform: translateX(18px); }
 
   /* Кнопки */
   button {
-    padding: 10px 16px;
-    font-size: 14px;
-    font-weight: 600;
-    border: none;
-    border-radius: 8px;
-    background: #3a3a45;
-    color: #eee;
-    cursor: pointer;
-    transition: all 0.2s;
-    flex: 1;
-    min-width: 100px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
+    padding: 10px 16px; font-size: 14px; font-weight: 600; border: none; border-radius: 8px;
+    background: #3a3a45; color: #eee; cursor: pointer; transition: all 0.2s; flex: 1; min-width: 100px;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
   }
   button:hover { background: #4a4a55; }
   button:active { transform: scale(0.96); }
@@ -144,21 +89,12 @@
 
   /* Статус и вердикт */
   .status-bar {
-    text-align: center;
-    font-size: 15px;
-    padding: 10px;
-    background: rgba(255,255,255,0.04);
-    border-radius: 8px;
-    border: 1px solid var(--border-color);
+    text-align: center; font-size: 15px; padding: 10px;
+    background: rgba(255,255,255,0.04); border-radius: 8px; border: 1px solid var(--border-color);
   }
   #verdict {
-    font-weight: 700;
-    padding: 10px;
-    border-radius: 8px;
-    display: none;
-    text-align: center;
-    animation: pop 0.3s ease-out;
-    margin-top: 8px;
+    font-weight: 700; padding: 10px; border-radius: 8px; display: none;
+    text-align: center; animation: pop 0.3s ease-out; margin-top: 8px;
   }
   @keyframes pop { 0% { transform: scale(0.9); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
   .v-excellent { background: #1b5e20; color: #a5f5b5; }
@@ -168,23 +104,45 @@
   .v-mistake   { background: #c62828; color: #ffcdd2; }
   .v-blunder   { background: #7f0000; color: #ffcdd2; border: 1px solid #f44336; }
 
-  /* Контейнер доски */
-  .board-container {
-    position: relative;
-    width: 100%;
-    max-width: var(--board-size);
-    aspect-ratio: 1 / 1;
-    border-radius: 8px;
-    overflow: hidden;
-    box-shadow: 0 12px 36px rgba(0,0,0,0.6);
+  /* Доска (Чистый CSS) */
+  .board-wrapper {
+    position: relative; width: 100%; max-width: var(--board-size); aspect-ratio: 1/1;
+    border-radius: 8px; overflow: hidden; box-shadow: 0 12px 36px rgba(0,0,0,0.6);
+    user-select: none;
   }
   #board {
-    width: 100%;
-    height: 100%;
+    display: grid; grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(8, 1fr);
+    width: 100%; height: 100%;
+  }
+  .sq {
+    position: relative; display: flex; align-items: center; justify-content: center;
+    font-size: calc(var(--sq-size) * 0.75); cursor: pointer;
+  }
+  .sq.light { background: #f0d9b5; }
+  .sq.dark  { background: #b58863; }
+  .sq.sel   { box-shadow: inset 0 0 0 4px #ffd700; }
+  .sq.last-move { background-image: linear-gradient(rgba(255,215,0,0.4), rgba(255,215,0,0.4)); }
+  .sq.in-check  { background-image: radial-gradient(circle, rgba(244,67,54,0.7) 40%, transparent 70%); }
+  
+  .sq img { width: 85%; height: 85%; pointer-events: none; filter: drop-shadow(1px 2px 3px rgba(0,0,0,0.4)); }
+  
+  /* Координаты */
+  .coord-file, .coord-rank {
+    position: absolute; font-size: calc(var(--sq-size) * 0.18); font-weight: 700;
+    pointer-events: none; opacity: 0.6;
+  }
+  .light .coord-file, .light .coord-rank { color: #8a6d4b; }
+  .dark  .coord-file, .dark  .coord-rank { color: #f5e6cf; }
+  .coord-file { bottom: 2px; right: 4px; }
+  .coord-rank { top: 2px; left: 4px; }
+
+  /* SVG Оверлей для стрелок */
+  #arrow-overlay {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none; z-index: 10;
   }
 
-  /* Скрытие встроенных подсказок cm-chessboard, оставляем только стрелки */
-  .cm-chessboard .marker-layer .square { display: none; }
+  #engine-status { font-size: 12px; color: #888; margin-top: 15px; text-align: center; }
 </style>
 </head>
 <body>
@@ -192,20 +150,25 @@
 <h1>♟ Шахматный Анализатор Pro</h1>
 
 <div class="main-container">
-  <!-- Панель управления -->
   <div class="control-panel">
-    <div class="panel-label">Уровень сложности (Elo)</div>
+    <div class="panel-label">Настройка сложности (Elo)</div>
     <div class="elo-slider-wrap">
       <input type="range" id="elo-slider" min="800" max="2500" step="100" value="1500">
-      <div class="elo-labels">
-        <span>800</span><span>1500</span><span>2500</span>
-      </div>
+      <div class="elo-labels"><span>800</span><span>1500</span><span>2500</span></div>
       <div id="elo-value">1500 Elo</div>
     </div>
 
+    <div class="auto-elo-box">
+      <div>Рекомендуемый Elo: <span id="recommended-elo">--</span></div>
+      <label class="switch">
+        <input type="checkbox" id="auto-elo-toggle">
+        <span class="slider"></span>
+      </label>
+    </div>
+
     <div class="panel-row">
-      <button id="btn-new" class="primary">🔄 Новая игра</button>
-      <button id="btn-undo">↶ Ход назад</button>
+      <button id="btn-new" class="primary">🔄 Новая</button>
+      <button id="btn-undo">↶ Назад</button>
       <button id="btn-flip">🔃 Перевернуть</button>
     </div>
     <div class="panel-row">
@@ -214,33 +177,53 @@
     </div>
   </div>
 
-  <!-- Статус и вердикт -->
   <div class="status-bar" id="status">Ход белых</div>
   <div id="verdict"></div>
 
-  <!-- Доска -->
-  <div class="board-container">
+  <div class="board-wrapper">
     <div id="board"></div>
+    <svg id="arrow-overlay"></svg>
   </div>
 
-  <div style="font-size: 12px; color: #888; text-align: center;" id="engine-status">Инициализация движка...</div>
+  <div id="engine-status">Инициализация движка...</div>
 </div>
 
-<!-- Основной скрипт логики -->
 <script>
 // ============================================================
 // 1. КОНСТАНТЫ И ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ
 // ============================================================
 const PIECE_VALUES = { p: 100, n: 320, b: 330, r: 500, q: 900, k: 20000 };
 
+// Ссылки на SVG фигуры Lichess (cburnett)
+const PIECE_IMAGES = {
+  wp: 'https://lichess1.org/assets/piece/cburnett/wP.svg',
+  wn: 'https://lichess1.org/assets/piece/cburnett/wN.svg',
+  wb: 'https://lichess1.org/assets/piece/cburnett/wB.svg',
+  wr: 'https://lichess1.org/assets/piece/cburnett/wR.svg',
+  wq: 'https://lichess1.org/assets/piece/cburnett/wQ.svg',
+  wk: 'https://lichess1.org/assets/piece/cburnett/wK.svg',
+  bp: 'https://lichess1.org/assets/piece/cburnett/bP.svg',
+  bn: 'https://lichess1.org/assets/piece/cburnett/bN.svg',
+  bb: 'https://lichess1.org/assets/piece/cburnett/bB.svg',
+  br: 'https://lichess1.org/assets/piece/cburnett/bR.svg',
+  bq: 'https://lichess1.org/assets/piece/cburnett/bQ.svg',
+  bk: 'https://lichess1.org/assets/piece/cburnett/bK.svg'
+};
+
 let game = new Chess();
-let board = null;
+let boardEl = document.getElementById('board');
+let arrowOverlay = document.getElementById('arrow-overlay');
 let currentElo = 1500;
 let isAnalyzing = false;
+let boardFlipped = false;
+let selectedSquare = null;
+let legalTargets = [];
+let lastMoveSquares = [];
 
-// Переменные для оценки хода
-let prevScoreWhite = null; // Оценка позиции (в сантипешках) с точки зрения белых
-let prevTurn = null;       // Чей был ход перед текущим анализом
+// Оценка хода
+let prevScoreWhite = null;
+let prevTurn = null;
+let cplHistory = []; // История потерь в сантипешках для расчета рекомендуемого Elo
 
 // Stockfish
 let stockfish = null;
@@ -257,7 +240,6 @@ let lastPrimaryScore = null;
 async function initStockfish() {
   const st = document.getElementById('engine-status');
   try {
-    // Используем стабильный CDN cdnjs
     const url = 'https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.1/stockfish.js';
     const response = await fetch(url);
     if (!response.ok) throw new Error('Fetch failed');
@@ -274,17 +256,10 @@ async function initStockfish() {
     };
 
     stockfish.onmessage = (ev) => handleEngineMessage(ev.data);
-
     stockfish.postMessage('uci');
     stockfish.postMessage('isready');
 
-    // Таймаут: если за 3 секунды движок не ответил — считаем, что не загрузился
-    setTimeout(() => {
-      if (!engineReady && !engineFailed) {
-        failEngine('Движок не отвечает. Резервный режим.');
-      }
-    }, 3000);
-
+    setTimeout(() => { if (!engineReady) failEngine('Движок не отвечает. Резервный режим.'); }, 3000);
   } catch (e) {
     console.warn('Stockfish failed to load:', e);
     failEngine('Нет доступа к CDN движка. Резервный режим.');
@@ -301,8 +276,7 @@ function handleEngineMessage(line) {
   if (typeof line !== 'string') return;
 
   if (line === 'uciok') {
-    // Настраиваем движок
-    stockfish.postMessage('setoption name MultiPV value 3'); // Для выбора 2-3 хода
+    stockfish.postMessage('setoption name MultiPV value 3');
     stockfish.postMessage('isready');
     return;
   }
@@ -310,8 +284,7 @@ function handleEngineMessage(line) {
     if (!engineReady) {
       engineReady = true;
       document.getElementById('engine-status').textContent = '✅ Stockfish готов';
-      updateEngineStrength(); // Применяем текущий Elo
-      analyzePosition(); // Анализируем стартовую позицию
+      updateEngineStrength();
     }
     return;
   }
@@ -347,12 +320,8 @@ function handleEngineMessage(line) {
 
 function updateEngineStrength() {
   if (!engineReady || engineFailed || !stockfish) return;
-
-  // Ограничиваем силу через UCI_Elo (доступно с 1320) и Skill Level
-  // UCI_LimitStrength = true заставляет движок играть слабее
   stockfish.postMessage('setoption name UCI_LimitStrength value true');
   stockfish.postMessage(`setoption name UCI_Elo value ${currentElo}`);
-  // Skill Level также влияет: 0-20 (20 макс)
   const skill = Math.max(0, Math.min(20, Math.floor((currentElo - 800) / 85)));
   stockfish.postMessage(`setoption name Skill Level value ${skill}`);
 }
@@ -360,7 +329,7 @@ function updateEngineStrength() {
 function getEngineMoves(fen, movetime = 150) {
   return new Promise((resolve) => {
     if (!engineReady || engineFailed || !stockfish) {
-      return resolve(getFallbackMove(game)); // Резерв
+      return resolve(getFallbackMove(game));
     }
     if (currentSearchResolve) { stockfish.postMessage('stop'); currentSearchResolve = null; }
 
@@ -378,7 +347,7 @@ function getEngineMoves(fen, movetime = 150) {
 }
 
 // ============================================================
-// 3. РЕЗЕРВНЫЙ АЛГОРИТМ (Если движок не загрузился)
+// 3. РЕЗЕРВНЫЙ АЛГОРИТМ
 // ============================================================
 const PAWN_PST = [
    0,  0,  0,  0,  0,  0,  0,  0,
@@ -441,24 +410,16 @@ function minimax(g, depth, alpha, beta, isMax) {
 function getFallbackMove(g) {
   const moves = g.moves({ verbose: true });
   if (!moves.length) return { moves: [], score: 0 };
-
   let bestMove = null;
   let bestScore = -Infinity;
   const turn = g.turn();
-
-  const tempGame = new Chess(g.fen()); // Клонируем доску
-
+  const tempGame = new Chess(g.fen());
   for (const m of moves) {
     tempGame.move(m);
     const score = -evaluatePosition(tempGame);
     tempGame.undo();
-
-    if (score > bestScore) {
-      bestScore = score;
-      bestMove = m;
-    }
+    if (score > bestScore) { bestScore = score; bestMove = m; }
   }
-
   const scoreWhite = turn === 'w' ? bestScore : -bestScore;
   return { moves: [bestMove.from + bestMove.to + (bestMove.promotion || '')], score: scoreWhite };
 }
@@ -476,125 +437,84 @@ async function analyzePosition() {
 
   const currentTurn = game.turn();
   const fen = game.fen();
-
   document.getElementById('status').textContent = '🤔 Анализ...';
-  document.getElementById('btn-hint').disabled = true;
 
-  // Запрашиваем у движка (или резерва) оценку и лучший ход
   const res = await getEngineMoves(fen, 150);
 
-  // Обновляем стрелку (показываем лучший ход)
+  if (prevScoreWhite !== null && prevTurn !== null && res.score !== null) {
+    const currentScoreWhite = res.score;
+    let loss = prevTurn === 'w' ? (prevScoreWhite - currentScoreWhite) : (currentScoreWhite - prevScoreWhite);
+    showVerdict(loss);
+    updateAutoElo(loss);
+  } else {
+    document.getElementById('verdict').style.display = 'none';
+  }
+
+  prevScoreWhite = res.score;
+  prevTurn = currentTurn;
+
+  // Автоматически рисуем стрелку лучшего хода (если не выключено)
   if (res.moves.length > 0) {
-    // Рисуем стрелку от лучшего хода
     drawArrow(res.moves[0].slice(0, 2), res.moves[0].slice(2, 4));
   } else {
     clearArrow();
   }
 
-  // Оценка предыдущего хода
-  if (prevScoreWhite !== null && prevTurn !== null && res.score !== null) {
-    const currentScoreWhite = res.score;
-    let loss = prevTurn === 'w' ? (prevScoreWhite - currentScoreWhite) : (currentScoreWhite - prevScoreWhite);
-    showVerdict(loss);
-  } else {
-    document.getElementById('verdict').style.display = 'none';
-  }
-
-  // Запоминаем оценку для следующего хода
-  prevScoreWhite = res.score;
-  prevTurn = currentTurn;
-
   document.getElementById('status').textContent = 'Ход ' + (currentTurn === 'w' ? 'белых' : 'чёрных');
-  document.getElementById('btn-hint').disabled = false;
   renderBoard();
 }
 
 function showVerdict(loss) {
   const el = document.getElementById('verdict');
   let text, cls;
-
-  if (loss <= -30)      { text = '🌟 Отличный ход!';      cls = 'v-excellent'; }
-  else if (loss <= 20)  { text = '👍 Хороший ход';        cls = 'v-good'; }
-  else if (loss <= 60)  { text = '😐 Нормально';          cls = 'v-neutral'; }
-  else if (loss <= 150) { text = '⚠️ Неточность';         cls = 'v-inaccuracy'; }
-  else if (loss <= 300) { text = '❌ Ошибка';             cls = 'v-mistake'; }
-  else                  { text = '💩 Полная хуйня';       cls = 'v-blunder'; }
-
+  if (loss <= -30)      { text = '🌟 Отличный ход!'; cls = 'v-excellent'; }
+  else if (loss <= 20)  { text = '👍 Хороший ход'; cls = 'v-good'; }
+  else if (loss <= 60)  { text = '😐 Нормально'; cls = 'v-neutral'; }
+  else if (loss <= 150) { text = '⚠️ Неточность'; cls = 'v-inaccuracy'; }
+  else if (loss <= 300) { text = '❌ Ошибка'; cls = 'v-mistake'; }
+  else                  { text = '💩 Полная хуйня'; cls = 'v-blunder'; }
   el.textContent = text;
   el.className = cls;
   el.style.display = 'block';
 }
 
 // ============================================================
-// 5. РАБОТА С ДОСКОЙ (cm-chessboard)
+// 5. АВТО-ELO И ИМИТАЦИЯ ЧЕЛОВЕКА
 // ============================================================
-function initBoard() {
-  board = new window.Chessboard(document.getElementById('board'), {
-    position: window.FEN.start,
-    assetsUrl: 'https://cdn.jsdelivr.net/npm/cm-chessboard@8/assets/',
-    style: {
-      cssClass: 'default',
-      showCoordinates: true,
-      aspectRatio: 1,
-    },
-    extensions: [
-      { class: 'Arrows', props: { persist: true } }
-    ]
-  });
+function updateAutoElo(loss) {
+  if (loss < 0) loss = 0; // Отрицательная потеря (улучшение) считаем за 0
+  cplHistory.push(loss);
+  if (cplHistory.length > 10) cplHistory.shift(); // Держим последние 10 ходов
 
-  // Подписываемся на события перемещения фигур
-  board.enableMoveInput((event) => {
-    if (event.type === 'move-input') {
-      const move = game.move({
-        from: event.from,
-        to: event.to,
-        promotion: 'q'
-      });
-      if (move) {
-        // Ход удался
-        clearArrow();
-        document.getElementById('verdict').style.display = 'none';
-        board.setPosition(game.fen());
-        analyzePosition(); // Запускаем анализ следующей позиции
-        return true;
-      }
-      return false;
-    }
-    return true;
-  });
-}
+  const avgCpl = cplHistory.reduce((a, b) => a + b, 0) / cplHistory.length;
+  let recElo = 1500;
 
-// Отрисовка стрелки (оверлей)
-function drawArrow(from, to) {
-  if (!board) return;
-  clearArrow();
-  // ARROW_TYPE.default — стандартная стрелка (можно выбрать и другой цвет)
-  board.addArrow(window.ARROW_TYPE.default, from, to);
-}
+  if (avgCpl < 25) recElo = 2400;
+  else if (avgCpl < 50) recElo = 2000;
+  else if (avgCpl < 80) recElo = 1700;
+  else if (avgCpl < 120) recElo = 1400;
+  else if (avgCpl < 200) recElo = 1100;
+  else recElo = 800;
 
-function clearArrow() {
-  if (!board) return;
-  // Удаляем все стрелки
-  const arrows = board.getArrows();
-  if (arrows && arrows.length) {
-    arrows.forEach(a => board.removeArrow(a.type, a.from, a.to));
+  document.getElementById('recommended-elo').textContent = recElo + ' Elo';
+
+  // Если включен авто-режим, двигаем ползунок
+  if (document.getElementById('auto-elo-toggle').checked) {
+    currentElo = recElo;
+    document.getElementById('elo-slider').value = currentElo;
+    document.getElementById('elo-value').textContent = currentElo + ' Elo';
+    updateEngineStrength();
   }
 }
 
-// ============================================================
-// 6. ИМИТАЦИЯ ЧЕЛОВЕКА
-// ============================================================
 function getHumanDelay() {
-  // Случайная задержка от 3000 до 10000 мс (3-10 секунд)
-  return Math.floor(Math.random() * 7000) + 3000;
+  return Math.floor(Math.random() * 7000) + 3000; // 3-10 секунд
 }
 
 function pickHumanMove(candidates, elo) {
   if (!candidates || candidates.length === 0) return null;
   if (candidates.length === 1) return candidates[0];
 
-  // Вероятность ошибки зависит от Elo
-  // На низких уровнях часто выбираем не первый ход
   let errorProbability;
   if (elo <= 1000) errorProbability = 0.6;
   else if (elo <= 1300) errorProbability = 0.45;
@@ -603,43 +523,30 @@ function pickHumanMove(candidates, elo) {
   else errorProbability = 0.05;
 
   if (Math.random() < errorProbability) {
-    // Выбираем случайный из 2-го или 3-го
     const idx = Math.min(1 + Math.floor(Math.random() * 2), candidates.length - 1);
     return candidates[idx];
   }
   return candidates[0];
 }
 
-// Кнопка "Подсказка" с задержкой
 async function handleHint() {
   if (isAnalyzing || game.game_over()) return;
   isAnalyzing = true;
   document.getElementById('btn-hint').disabled = true;
   document.getElementById('status').textContent = '🤔 Бот думает...';
 
-  // Имитация задержки
   const delay = getHumanDelay();
   const startTime = Date.now();
-
-  // Запрашиваем у движка лучшие ходы
   const res = await getEngineMoves(game.fen(), 200);
+  
   let bestMove = null;
-  if (res.moves.length > 0) {
-    bestMove = pickHumanMove(res.moves, currentElo);
-  }
+  if (res.moves.length > 0) bestMove = pickHumanMove(res.moves, currentElo);
 
   const elapsed = Date.now() - startTime;
-  const remainingDelay = Math.max(0, delay - elapsed);
-  if (remainingDelay > 0) {
-    await new Promise(r => setTimeout(r, remainingDelay));
-  }
+  if (delay - elapsed > 0) await new Promise(r => setTimeout(r, delay - elapsed));
 
-  // Рисуем стрелку выбранного хода
-  if (bestMove) {
-    drawArrow(bestMove.slice(0, 2), bestMove.slice(2, 4));
-  } else {
-    clearArrow();
-  }
+  if (bestMove) drawArrow(bestMove.slice(0, 2), bestMove.slice(2, 4));
+  else clearArrow();
 
   document.getElementById('status').textContent = 'Ход ' + (game.turn() === 'w' ? 'белых' : 'чёрных');
   document.getElementById('btn-hint').disabled = false;
@@ -647,20 +554,136 @@ async function handleHint() {
 }
 
 // ============================================================
-// 7. УПРАВЛЕНИЕ
+// 6. ОТРИСОВКА ДОСКИ И СТРЕЛОК (Чистый CSS/SVG)
 // ============================================================
 function renderBoard() {
-  if (!board) return;
-  board.setPosition(game.fen());
+  boardEl.innerHTML = '';
+  const grid = game.board();
+  let checkSq = null;
+
+  if (game.in_check()) {
+    for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
+      const p = grid[r][c];
+      if (p && p.type === 'k' && p.color === game.turn()) checkSq = 'abcdefgh'[c] + (8 - r);
+    }
+  }
+
+  for (let dr = 0; dr < 8; dr++) {
+    for (let dc = 0; dc < 8; dc++) {
+      const r = boardFlipped ? 7 - dr : dr;
+      const c = boardFlipped ? 7 - dc : dc;
+      const file = 'abcdefgh'[c];
+      const rank = 8 - r;
+      const sqName = file + rank;
+
+      const sq = document.createElement('div');
+      sq.className = 'sq ' + ((r + c) % 2 === 0 ? 'light' : 'dark');
+      sq.dataset.sq = sqName;
+
+      if (selectedSquare === sqName) sq.classList.add('sel');
+      if (lastMoveSquares.includes(sqName)) sq.classList.add('last-move');
+      if (checkSq === sqName) sq.classList.add('in-check');
+
+      // Координаты
+      if (dr === 7) { const f = document.createElement('span'); f.className = 'coord-file'; f.textContent = file; sq.appendChild(f); }
+      if (dc === 0) { const rk = document.createElement('span'); rk.className = 'coord-rank'; rk.textContent = rank; sq.appendChild(rk); }
+
+      // Фигура
+      const p = grid[r][c];
+      if (p) {
+        const img = document.createElement('img');
+        img.src = PIECE_IMAGES[p.color + p.type];
+        sq.appendChild(img);
+      }
+
+      sq.onclick = () => onSquareClick(sqName);
+      boardEl.appendChild(sq);
+    }
+  }
 }
 
+function onSquareClick(sq) {
+  if (game.game_over()) return;
+
+  if (selectedSquare) {
+    const move = game.move({ from: selectedSquare, to: sq, promotion: 'q' });
+    if (move) {
+      selectedSquare = null; legalTargets = []; lastMoveSquares = [move.from, move.to];
+      document.getElementById('verdict').style.display = 'none';
+      clearArrow();
+      renderBoard();
+      analyzePosition();
+      return;
+    }
+  }
+
+  const p = game.get(sq);
+  if (p && p.color === game.turn()) {
+    selectedSquare = sq;
+    legalTargets = game.moves({ square: sq, verbose: true }).map(m => m.to);
+  } else {
+    selectedSquare = null; legalTargets = [];
+  }
+  renderBoard();
+}
+
+// Рисование стрелки
+function drawArrow(from, to) {
+  clearArrow();
+  if (!from || !to) return;
+
+  const getXY = (sq) => {
+    let file = sq.charCodeAt(0) - 97; // a=0
+    let rank = parseInt(sq[1], 10) - 1; // 1=0
+    if (boardFlipped) { file = 7 - file; rank = 7 - rank; }
+    const x = (file + 0.5) * 12.5;
+    const y = (7 - rank + 0.5) * 12.5;
+    return { x: `${x}%`, y: `${y}%` };
+  };
+
+  const p1 = getXY(from);
+  const p2 = getXY(to);
+
+  const svgNS = "http://www.w3.org/2000/svg";
+  const line = document.createElementNS(svgNS, "line");
+  line.setAttribute("x1", p1.x); line.setAttribute("y1", p1.y);
+  line.setAttribute("x2", p2.x); line.setAttribute("y2", p2.y);
+  line.setAttribute("stroke", "rgba(0, 230, 118, 0.8)");
+  line.setAttribute("stroke-width", "1.5%");
+  line.setAttribute("marker-end", "url(#arrowhead)");
+
+  const defs = document.createElementNS(svgNS, "defs");
+  const marker = document.createElementNS(svgNS, "marker");
+  marker.setAttribute("id", "arrowhead");
+  marker.setAttribute("markerWidth", "4");
+  marker.setAttribute("markerHeight", "4");
+  marker.setAttribute("refX", "2");
+  marker.setAttribute("refY", "2");
+  marker.setAttribute("orient", "auto");
+  const poly = document.createElementNS(svgNS, "polygon");
+  poly.setAttribute("points", "0,0 4,2 0,4");
+  poly.setAttribute("fill", "rgba(0, 230, 118, 0.8)");
+  marker.appendChild(poly); defs.appendChild(marker);
+  
+  arrowOverlay.innerHTML = '';
+  arrowOverlay.appendChild(defs);
+  arrowOverlay.appendChild(line);
+}
+
+function clearArrow() {
+  arrowOverlay.innerHTML = '';
+}
+
+// ============================================================
+// 7. УПРАВЛЕНИЕ И СТАРТ
+// ============================================================
 function resetGame() {
   game = new Chess();
   clearArrow();
   document.getElementById('verdict').style.display = 'none';
-  prevScoreWhite = null;
-  prevTurn = null;
-  document.getElementById('status').textContent = 'Ход белых';
+  prevScoreWhite = null; prevTurn = null; cplHistory = [];
+  document.getElementById('recommended-elo').textContent = '--';
+  selectedSquare = null; lastMoveSquares = [];
   if (stockfish && engineReady) stockfish.postMessage('ucinewgame');
   renderBoard();
   analyzePosition();
@@ -671,28 +694,21 @@ function undoMove() {
   game.undo();
   clearArrow();
   document.getElementById('verdict').style.display = 'none';
-  prevScoreWhite = null;
-  prevTurn = null;
+  prevScoreWhite = null; prevTurn = null;
+  selectedSquare = null; lastMoveSquares = [];
   renderBoard();
   analyzePosition();
 }
 
 function flipBoard() {
-  if (board) board.setOrientation(board.getOrientation() === 'w' ? 'b' : 'w');
+  boardFlipped = !boardFlipped;
+  renderBoard();
+  // Перерисовываем стрелку, если она была
+  // (Для простоты просто очищаем)
+  clearArrow();
 }
 
-// ============================================================
-// 8. ИНИЦИАЛИЗАЦИЯ
-// ============================================================
-// Ждем загрузки модулей cm-chessboard
-window.addEventListener('cmReady', () => {
-  initBoard();
-  renderBoard();
-  initStockfish();
-  analyzePosition(); // Анализ стартовой позиции
-});
-
-// Настройка слайдера Elo
+// Настройки слайдера
 const eloSlider = document.getElementById('elo-slider');
 const eloValue = document.getElementById('elo-value');
 
@@ -700,6 +716,8 @@ eloSlider.addEventListener('input', (e) => {
   currentElo = parseInt(e.target.value, 10);
   eloValue.textContent = currentElo + ' Elo';
   updateEngineStrength();
+  // Если пользователь двигает ползунок вручную, отключаем авто-режим
+  document.getElementById('auto-elo-toggle').checked = false;
 });
 
 // Привязка кнопок
@@ -707,14 +725,11 @@ document.getElementById('btn-new').addEventListener('click', resetGame);
 document.getElementById('btn-undo').addEventListener('click', undoMove);
 document.getElementById('btn-flip').addEventListener('click', flipBoard);
 document.getElementById('btn-hint').addEventListener('click', handleHint);
-document.getElementById('btn-clear-arrow').addEventListener('click', () => {
-  clearArrow();
-});
+document.getElementById('btn-clear-arrow').addEventListener('click', clearArrow);
 
-// Устанавливаем начальное значение Elo
-currentElo = parseInt(eloSlider.value, 10);
-eloValue.textContent = currentElo + ' Elo';
+// Инициализация при загрузке
+renderBoard();
+initStockfish();
 </script>
-
 </body>
 </html>

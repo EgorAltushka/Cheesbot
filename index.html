@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>Шахматы — Тренер (Stockfish)</title>
+<title>Шахматы — Анализатор v3</title> <!-- v3 чтобы вы видели, что код обновился -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
 <style>
   :root {
@@ -22,17 +22,27 @@
     min-height: 100vh;
     overflow-x: hidden;
   }
-  h2 { margin: 10px 0; letter-spacing: 1px; color: #f0d9b5; font-size: 22px; }
+  h2 { margin: 10px 0 5px; letter-spacing: 1px; color: #f0d9b5; font-size: 22px; }
+  .subtitle { font-size: 12px; color: #888; margin-bottom: 10px; text-align: center; }
 
   #status {
     font-size: 15px;
     padding: 8px 18px;
     background: rgba(255,255,255,0.06);
     border-radius: 10px;
-    margin: 5px 0 10px;
+    margin: 5px 0;
     text-align: center;
     width: 100%;
     max-width: var(--board-size);
+    font-weight: bold;
+  }
+
+  #hint-text {
+    font-size: 14px;
+    color: #00e676;
+    margin-bottom: 8px;
+    min-height: 20px;
+    text-align: center;
   }
 
   #quality {
@@ -112,8 +122,11 @@
 </style>
 </head>
 <body>
-<h2>♟ Шахматный Тренер</h2>
-<div id="status">Ход белых</div>
+<h2>♟ Шахматный Анализатор</h2>
+<div class="subtitle">Вы двигаете фигуры за ОБЕ стороны. Бот только подсказывает.</div>
+
+<div id="status">Ход белых (сделайте ход)</div>
+<div id="hint-text"></div>
 <div id="quality"></div>
 <div id="board-wrap"><div id="board"></div></div>
 <div class="controls">
@@ -126,7 +139,7 @@
 
 <script>
 if (typeof Chess === 'undefined') {
-  document.getElementById('status').textContent = '❌ Ошибка загрузки chess.js. Проверьте интернет.';
+  document.getElementById('status').textContent = '❌ Ошибка загрузки chess.js.';
   throw new Error('chess.js missing');
 }
 
@@ -140,9 +153,8 @@ let bestMoveHint = null;
 let boardFlipped = false;
 let legalTargets = [];
 
-// Переменные для оценки качества хода
-let prevScoreWhite = null; // Оценка позиции (в сантипешках) с точки зрения белых
-let prevTurn = null;       // Чей был ход перед текущим анализом
+let prevScoreWhite = null; 
+let prevTurn = null;       
 
 let stockfish = null;
 let engineReady = false;
@@ -170,7 +182,7 @@ async function initStockfish() {
     
     stockfish.onerror = (e) => {
       console.error('Worker error:', e);
-      failEngine('Ошибка внутри движка. Включен резервный режим.');
+      failEngine('Ошибка движка. Резервный режим.');
     };
 
     stockfish.onmessage = (ev) => handleEngineMessage(ev.data);
@@ -182,7 +194,7 @@ async function initStockfish() {
 
   } catch (e) {
     console.warn('Stockfish failed to load:', e);
-    failEngine('Нет доступа к CDN движка. Резервный режим.');
+    failEngine('Нет доступа к движку. Резервный режим.');
   }
 }
 
@@ -204,8 +216,8 @@ function handleEngineMessage(line) {
   if (line === 'readyok') {
     if (!engineReady) {
       engineReady = true;
-      document.getElementById('engine-status').textContent = '✅ Stockfish готов (Макс. сила)';
-      analyzePosition(); // Анализируем стартовую позицию
+      document.getElementById('engine-status').textContent = '✅ Stockfish готов';
+      analyzePosition();
     }
     return;
   }
@@ -260,7 +272,7 @@ function getEngineMoves(fen, movetime = 150) {
 }
 
 // ==========================================
-// 2. РЕЗЕРВНЫЙ АЛГОРИТМ (Если движок не загрузился)
+// 2. РЕЗЕРВНЫЙ АЛГОРИТМ (БЕЗОПАСНЫЙ)
 // ==========================================
 const PAWN_PST = [
    0,  0,  0,  0,  0,  0,  0,  0,
@@ -320,6 +332,7 @@ function minimax(g, depth, alpha, beta, isMax) {
   }
 }
 
+// ВАЖНО: Работаем со строгой копией доски, чтобы никогда не сдвинуть фигуру на реальной доске!
 function getFallbackMove(g) {
   const moves = g.moves({ verbose: true });
   if (!moves.length) return { moves: [], score: 0 };
@@ -328,11 +341,12 @@ function getFallbackMove(g) {
   let bestScore = -Infinity;
   const turn = g.turn();
   
+  const tempGame = new Chess(g.fen()); // Клонируем доску
+
   for (const m of moves) {
-    g.move(m);
-    // Оценка с точки зрения ходившего (после хода ход перешел к противнику, поэтому инвертируем)
-    const score = -evaluatePosition(g);
-    g.undo();
+    tempGame.move(m);
+    const score = -evaluatePosition(tempGame);
+    tempGame.undo();
     
     if (score > bestScore) {
       bestScore = score;
@@ -340,17 +354,17 @@ function getFallbackMove(g) {
     }
   }
   
-  // Приводим оценку к точке зрения белых
   const scoreWhite = turn === 'w' ? bestScore : -bestScore;
   return { moves: [bestMove.from + bestMove.to + (bestMove.promotion || '')], score: scoreWhite };
 }
 
 // ==========================================
-// 3. АНАЛИЗ И ОЦЕНКА КАЧЕСТВА ХОДА
+// 3. АНАЛИЗ И ОЦЕНКА
 // ==========================================
 async function analyzePosition() {
   if (game.game_over()) {
     bestMoveHint = null;
+    document.getElementById('hint-text').textContent = '';
     renderBoard();
     return;
   }
@@ -358,36 +372,28 @@ async function analyzePosition() {
   const currentTurn = game.turn();
   const fen = game.fen();
   
-  // Запрашиваем у движка лучший ход и оценку текущей позиции
+  document.getElementById('hint-text').textContent = '🤔 Анализ...';
+  
   const res = await getEngineMoves(fen, 150);
   
-  // Устанавливаем подсказку (зеленая рамка)
   if (res.moves.length > 0) {
-    bestMoveHint = { from: res.moves[0].slice(0,2), to: res.moves[0].slice(2,4) };
+    const m = res.moves[0];
+    bestMoveHint = { from: m.slice(0,2), to: m.slice(2,4) };
+    document.getElementById('hint-text').textContent = `💡 Лучший ход: ${m.slice(0,2)} → ${m.slice(2,4)}`;
   } else {
     bestMoveHint = null;
+    document.getElementById('hint-text').textContent = 'Нет доступных ходов';
   }
 
-  // Оценка качества ПРЕДЫДУЩЕГО хода
+  // Оценка предыдущего хода
   if (prevScoreWhite !== null && prevTurn !== null && res.score !== null) {
     const currentScoreWhite = res.score;
-    let loss;
-    
-    // Если ходили белые: потеря = оценка до - оценка после
-    // Если ходили черные: оценка до для них была -prevScoreWhite, после -currentScoreWhite
-    // Потеря = (-prevScoreWhite) - (-currentScoreWhite) = currentScoreWhite - prevScoreWhite
-    if (prevTurn === 'w') {
-      loss = prevScoreWhite - currentScoreWhite;
-    } else {
-      loss = currentScoreWhite - prevScoreWhite;
-    }
-    
+    let loss = prevTurn === 'w' ? (prevScoreWhite - currentScoreWhite) : (currentScoreWhite - prevScoreWhite);
     showQuality(loss);
   } else {
     document.getElementById('quality').style.display = 'none';
   }
   
-  // Запоминаем оценку для следующего хода
   prevScoreWhite = res.score;
   prevTurn = currentTurn;
   
@@ -406,7 +412,7 @@ function showQuality(loss) {
 }
 
 // ==========================================
-// 4. ОТРИСОВКА И ИГРА
+// 4. ОТРИСОВКА И КЛИКИ
 // ==========================================
 function renderBoard() {
   const boardEl = document.getElementById('board');
@@ -462,29 +468,28 @@ function updateStatus() {
     if (game.in_checkmate()) el.textContent = '♛ Мат! Победили ' + (game.turn()==='w'?'чёрные':'белые');
     else el.textContent = '½ Ничья';
   } else {
-    el.textContent = 'Ход ' + (game.turn()==='w'?'белых':'чёрных');
+    el.textContent = 'Ход ' + (game.turn()==='w'?'БЕЛЫХ':'ЧЁРНЫХ') + ' — сделайте ход';
   }
 }
 
 function onSquareClick(sq) {
   if (game.game_over()) return;
 
-  // Попытка сделать ход
+  // ЕСЛИ ВЫБРАНА ФИГУРА - ПРОБУЕМ СДЕЛАТЬ ХОД
   if (selectedSquare) {
     const move = game.move({ from: selectedSquare, to: sq, promotion: 'q' });
     if (move) {
       selectedSquare = null; legalTargets = []; bestMoveHint = null;
       lastMoveSquares = [move.from, move.to];
-      document.getElementById('quality').style.display = 'none'; // Скрываем старую оценку
+      document.getElementById('quality').style.display = 'none';
+      document.getElementById('hint-text').textContent = '';
       renderBoard();
-      
-      // Запускаем анализ новой позиции
-      analyzePosition();
+      analyzePosition(); // Запускаем анализ СЛЕДУЮЩЕЙ позиции
       return;
     }
   }
 
-  // Выбор фигуры (теперь можно выбирать ЛЮБУЮ фигуру, чей сейчас ход)
+  // ВЫБОР ФИГУРЫ (любого цвета, чей сейчас ход)
   const p = game.get(sq);
   if (p && p.color === game.turn()) {
     selectedSquare = sq;
@@ -503,9 +508,10 @@ function resetGame() {
   selectedSquare = null; lastMoveSquares = []; bestMoveHint = null; legalTargets = [];
   prevScoreWhite = null; prevTurn = null;
   document.getElementById('quality').style.display = 'none';
+  document.getElementById('hint-text').textContent = '';
   if (stockfish && engineReady) stockfish.postMessage('ucinewgame');
   renderBoard();
-  analyzePosition(); // Анализ первого хода
+  analyzePosition();
 }
 
 function flipBoard() { boardFlipped = !boardFlipped; renderBoard(); }
@@ -517,11 +523,11 @@ function undoMove() {
   selectedSquare = null; lastMoveSquares = []; bestMoveHint = null; legalTargets = [];
   prevScoreWhite = null; prevTurn = null;
   document.getElementById('quality').style.display = 'none';
+  document.getElementById('hint-text').textContent = '';
   renderBoard();
-  analyzePosition(); // Пересчитываем подсказку для отмененной позиции
+  analyzePosition();
 }
 
-// Мгновенный старт
 renderBoard();
 initStockfish();
 </script>

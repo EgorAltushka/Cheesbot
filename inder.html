@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Шахматный помощник</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+<style>
+  body{font-family:sans-serif;background:#222;color:#eee;display:flex;flex-direction:column;align-items:center}
+  #board{display:grid;grid-template-columns:repeat(8,48px);grid-template-rows:repeat(8,48px);margin:10px}
+  .sq{display:flex;align-items:center;justify-content:center;font-size:34px;cursor:pointer;user-select:none}
+  .light{background:#f0d9b5}.dark{background:#b58863}
+  .sel{outline:3px solid #ff0}.best{outline:3px solid #0f0}
+  button{margin:4px;padding:8px 14px;font-size:16px}
+  #status{margin:6px;font-size:18px}
+</style>
+</head>
+<body>
+<h2>Шахматный помощник</h2>
+<div id="status"></div>
+<div id="board"></div>
+<button onclick="showBest()">Лучший ход</button>
+<button onclick="reset()">Новая игра</button>
+<script>
+const PIECES={wk:'♔',wq:'♕',wr:'♖',wb:'♗',wn:'♘',wp:'♙',bk:'♚',bq:'♛',br:'♜',bb:'♝',bn:'♞',bp:'♟'};
+const VAL={p:100,n:320,b:330,r:500,q:900,k:0};
+let game=new Chess(), selected=null, bestMove=null;
+
+function render(){
+  const b=document.getElementById('board'); b.innerHTML='';
+  game.board().forEach((row,r)=>row.forEach((cell,c)=>{
+    const sq=document.createElement('div');
+    const name='abcdefgh'[c]+(8-r);
+    sq.className='sq '+(((r+c)%2)?'dark':'light');
+    if(selected===name)sq.classList.add('sel');
+    if(bestMove&&(bestMove.from===name||bestMove.to===name))sq.classList.add('best');
+    sq.textContent=cell?PIECES[cell.color+cell.type]:'';
+    sq.onclick=()=>click(name);
+    b.appendChild(sq);
+  }));
+  const s=document.getElementById('status');
+  s.textContent=game.game_over()?'Игра окончена':'Ход: '+(game.turn()==='w'?'белых':'чёрных');
+}
+function click(name){
+  if(selected){
+    const m=game.move({from:selected,to:name,promotion:'q'});
+    if(m){selected=null;bestMove=null;render();return;}
+  }
+  const p=game.get(name);
+  selected=(p&&p.color===game.turn())?name:null;
+  render();
+}
+function evaluate(){
+  if(game.in_checkmate())return -9999;
+  if(game.in_draw())return 0;
+  let s=0;
+  game.board().forEach(row=>row.forEach(c=>{if(c)s+=(c.color==='w'?1:-1)*VAL[c.type];}));
+  return game.turn()==='w'?s:-s;
+}
+function negamax(depth,alpha,beta){
+  if(depth===0)return evaluate();
+  const moves=game.moves();
+  if(moves.length===0)return game.in_check()?-9999-depth:0;
+  let best=-Infinity;
+  for(const m of moves){
+    game.move(m);
+    best=Math.max(best,-negamax(depth-1,-beta,-alpha));
+    game.undo();
+    alpha=Math.max(alpha,best);
+    if(alpha>=beta)break;
+  }
+  return best;
+}
+function showBest(){
+  if(game.game_over())return;
+  let best=null,val=-Infinity;
+  for(const m of game.moves({verbose:true})){
+    game.move(m);
+    const v=-negamax(2,-Infinity,Infinity);
+    game.undo();
+    if(v>val){val=v;best=m;}
+  }
+  bestMove=best;
+  document.getElementById('status').textContent='Лучший ход: '+best.san;
+  render();
+}
+function reset(){game=new Chess();selected=null;bestMove=null;render();}
+render();
+</script>
+</body>
+</html>

@@ -32,22 +32,14 @@
 
   .main-container { display: flex; flex-direction: column; gap: 16px; width: 100%; max-width: var(--board-size); }
 
-  /* Панель управления */
   .control-panel {
     background: var(--panel-bg);
-    border-radius: 12px;
-    padding: 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
-    border: 1px solid var(--border-color);
+    border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 14px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4); border: 1px solid var(--border-color);
   }
-
   .panel-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: center; }
   .panel-label { font-size: 13px; color: var(--text-muted); width: 100%; text-align: center; margin-bottom: 2px; }
 
-  /* Слайдер Elo */
   .elo-slider-wrap { display: flex; flex-direction: column; width: 100%; gap: 6px; }
   .elo-slider-wrap input[type=range] {
     -webkit-appearance: none; width: 100%; height: 8px; border-radius: 4px;
@@ -61,7 +53,6 @@
   .elo-labels { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-muted); }
   #elo-value { font-weight: bold; color: var(--primary); font-size: 16px; text-align: center; }
 
-  /* Рекомендуемый Elo */
   .auto-elo-box {
     display: flex; align-items: center; justify-content: space-between;
     background: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px;
@@ -75,7 +66,6 @@
   input:checked + .slider { background-color: var(--primary); }
   input:checked + .slider:before { transform: translateX(18px); }
 
-  /* Кнопки */
   button {
     padding: 10px 16px; font-size: 14px; font-weight: 600; border: none; border-radius: 8px;
     background: #3a3a45; color: #eee; cursor: pointer; transition: all 0.2s; flex: 1; min-width: 100px;
@@ -87,24 +77,12 @@
   button.primary:hover { background: var(--primary-hover); }
   button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 
-  /* Статус и вердикт */
   .status-bar {
     text-align: center; font-size: 15px; padding: 10px;
     background: rgba(255,255,255,0.04); border-radius: 8px; border: 1px solid var(--border-color);
+    font-weight: bold; transition: background 0.3s;
   }
-  #verdict {
-    font-weight: 700; padding: 10px; border-radius: 8px; display: none;
-    text-align: center; animation: pop 0.3s ease-out; margin-top: 8px;
-  }
-  @keyframes pop { 0% { transform: scale(0.9); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
-  .v-excellent { background: #1b5e20; color: #a5f5b5; }
-  .v-good      { background: #33691e; color: #dcedc8; }
-  .v-neutral   { background: #37474f; color: #cfd8dc; }
-  .v-inaccuracy{ background: #e65100; color: #fff3e0; }
-  .v-mistake   { background: #c62828; color: #ffcdd2; }
-  .v-blunder   { background: #7f0000; color: #ffcdd2; border: 1px solid #f44336; }
 
-  /* Доска (Чистый CSS) */
   .board-wrapper {
     position: relative; width: 100%; max-width: var(--board-size); aspect-ratio: 1/1;
     border-radius: 8px; overflow: hidden; box-shadow: 0 12px 36px rgba(0,0,0,0.6);
@@ -126,7 +104,6 @@
   
   .sq img { width: 85%; height: 85%; pointer-events: none; filter: drop-shadow(1px 2px 3px rgba(0,0,0,0.4)); }
   
-  /* Координаты */
   .coord-file, .coord-rank {
     position: absolute; font-size: calc(var(--sq-size) * 0.18); font-weight: 700;
     pointer-events: none; opacity: 0.6;
@@ -136,11 +113,31 @@
   .coord-file { bottom: 2px; right: 4px; }
   .coord-rank { top: 2px; left: 4px; }
 
-  /* SVG Оверлей для стрелок */
   #arrow-overlay {
     position: absolute; top: 0; left: 0; width: 100%; height: 100%;
     pointer-events: none; z-index: 10;
   }
+
+  /* Новый лог анализа */
+  .analysis-log {
+    background: var(--panel-bg); border-radius: 12px; padding: 12px;
+    border: 1px solid var(--border-color); max-height: 200px; overflow-y: auto;
+    width: 100%; font-size: 13px; display: flex; flex-direction: column; gap: 8px;
+  }
+  .log-entry { border-bottom: 1px solid #3d3d47; padding-bottom: 8px; }
+  .log-entry:last-child { border-bottom: none; padding-bottom: 0; }
+  .log-move { font-weight: bold; color: #fff; font-size: 14px; }
+  .log-eval { float: right; font-family: monospace; font-size: 13px; padding: 2px 6px; border-radius: 4px; }
+  .eval-pos { background: #1b5e20; color: #a5f5b5; }
+  .eval-neg { background: #7f0000; color: #ffcdd2; }
+  .log-desc { color: var(--text-muted); margin-top: 4px; line-height: 1.4; }
+  .log-badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 6px; }
+  .badge-excellent { background: #1b5e20; color: #a5f5b5; }
+  .badge-good { background: #33691e; color: #dcedc8; }
+  .badge-neutral { background: #37474f; color: #cfd8dc; }
+  .badge-inaccuracy { background: #e65100; color: #fff3e0; }
+  .badge-mistake { background: #c62828; color: #ffcdd2; }
+  .badge-blunder { background: #7f0000; color: #ffcdd2; border: 1px solid #f44336; }
 
   #engine-status { font-size: 12px; color: #888; margin-top: 15px; text-align: center; }
 </style>
@@ -178,23 +175,24 @@
   </div>
 
   <div class="status-bar" id="status">Ход белых</div>
-  <div id="verdict"></div>
 
   <div class="board-wrapper">
     <div id="board"></div>
     <svg id="arrow-overlay"></svg>
   </div>
 
+  <!-- Панель с пояснениями -->
+  <div class="analysis-log" id="analysis-log">
+    <div style="text-align: center; color: #666; font-style: italic;" id="log-placeholder">Сделайте ход, чтобы увидеть анализ</div>
+  </div>
+
   <div id="engine-status">Инициализация движка...</div>
 </div>
 
 <script>
-// ============================================================
-// 1. КОНСТАНТЫ И ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ
-// ============================================================
 const PIECE_VALUES = { p: 100, n: 320, b: 330, r: 500, q: 900, k: 20000 };
+const PIECE_NAMES_RU = { p: 'пешку', n: 'коня', b: 'слона', r: 'ладью', q: 'ферзя', k: 'короля' };
 
-// Ссылки на SVG фигуры Lichess (cburnett)
 const PIECE_IMAGES = {
   wp: 'https://lichess1.org/assets/piece/cburnett/wP.svg',
   wn: 'https://lichess1.org/assets/piece/cburnett/wN.svg',
@@ -213,6 +211,7 @@ const PIECE_IMAGES = {
 let game = new Chess();
 let boardEl = document.getElementById('board');
 let arrowOverlay = document.getElementById('arrow-overlay');
+let logEl = document.getElementById('analysis-log');
 let currentElo = 1500;
 let isAnalyzing = false;
 let boardFlipped = false;
@@ -220,12 +219,10 @@ let selectedSquare = null;
 let legalTargets = [];
 let lastMoveSquares = [];
 
-// Оценка хода
 let prevScoreWhite = null;
 let prevTurn = null;
-let cplHistory = []; // История потерь в сантипешках для расчета рекомендуемого Elo
+let cplHistory = [];
 
-// Stockfish
 let stockfish = null;
 let engineReady = false;
 let engineFailed = false;
@@ -233,10 +230,11 @@ let currentSearchResolve = null;
 let searchTimerId = null;
 let multiPVLines = {};
 let lastPrimaryScore = null;
+let hintInterval = null; // Для таймера раздумий
 
-// ============================================================
-// 2. ИНИЦИАЛИЗАЦИЯ ДВИЖКА
-// ============================================================
+// ==========================================
+// ИНИЦИАЛИЗАЦИЯ ДВИЖКА
+// ==========================================
 async function initStockfish() {
   const st = document.getElementById('engine-status');
   try {
@@ -249,19 +247,12 @@ async function initStockfish() {
     const workerUrl = URL.createObjectURL(blob);
 
     stockfish = new Worker(workerUrl);
-
-    stockfish.onerror = (e) => {
-      console.error('Worker error:', e);
-      failEngine('Ошибка внутри движка. Включен резервный режим.');
-    };
-
+    stockfish.onerror = (e) => { console.error(e); failEngine('Ошибка внутри движка. Резервный режим.'); };
     stockfish.onmessage = (ev) => handleEngineMessage(ev.data);
     stockfish.postMessage('uci');
     stockfish.postMessage('isready');
-
     setTimeout(() => { if (!engineReady) failEngine('Движок не отвечает. Резервный режим.'); }, 3000);
   } catch (e) {
-    console.warn('Stockfish failed to load:', e);
     failEngine('Нет доступа к CDN движка. Резервный режим.');
   }
 }
@@ -274,7 +265,6 @@ function failEngine(msg) {
 
 function handleEngineMessage(line) {
   if (typeof line !== 'string') return;
-
   if (line === 'uciok') {
     stockfish.postMessage('setoption name MultiPV value 3');
     stockfish.postMessage('isready');
@@ -306,7 +296,6 @@ function handleEngineMessage(line) {
     if (searchTimerId) { clearTimeout(searchTimerId); searchTimerId = null; }
     const bestMove = line.split(/\s+/)[1];
     const candidates = Object.values(multiPVLines).sort((a, b) => b.score - a.score).map(x => x.move);
-
     if (candidates.length === 0 && bestMove && bestMove !== '(none)') candidates.push(bestMove);
     lastPrimaryScore = multiPVLines[1] ? multiPVLines[1].score : null;
 
@@ -328,91 +317,42 @@ function updateEngineStrength() {
 
 function getEngineMoves(fen, movetime = 150) {
   return new Promise((resolve) => {
-    if (!engineReady || engineFailed || !stockfish) {
-      return resolve(getFallbackMove(game));
-    }
+    if (!engineReady || engineFailed || !stockfish) return resolve(getFallbackMove(game));
     if (currentSearchResolve) { stockfish.postMessage('stop'); currentSearchResolve = null; }
-
     multiPVLines = {};
     lastPrimaryScore = null;
     currentSearchResolve = (result) => {
       if (searchTimerId) clearTimeout(searchTimerId);
       resolve(result);
     };
-
     stockfish.postMessage('position fen ' + fen);
     stockfish.postMessage('go movetime ' + movetime);
     searchTimerId = setTimeout(() => stockfish.postMessage('stop'), movetime + 1000);
   });
 }
 
-// ============================================================
-// 3. РЕЗЕРВНЫЙ АЛГОРИТМ
-// ============================================================
-const PAWN_PST = [
-   0,  0,  0,  0,  0,  0,  0,  0,
-  50, 50, 50, 50, 50, 50, 50, 50,
-  10, 10, 20, 30, 30, 20, 10, 10,
-   5,  5, 10, 25, 25, 10,  5,  5,
-   0,  0,  0, 20, 20,  0,  0,  0,
-   5, -5,-10,  0,  0,-10, -5,  5,
-   5, 10, 10,-20,-20, 10, 10,  5,
-   0,  0,  0,  0,  0,  0,  0,  0
-];
-
+// ==========================================
+// РЕЗЕРВНЫЙ АЛГОРИТМ
+// ==========================================
+const PAWN_PST = [0,0,0,0,0,0,0,0, 50,50,50,50,50,50,50,50, 10,10,20,30,30,20,10,10, 5,5,10,25,25,10,5,5, 0,0,0,20,20,0,0,0, 5,-5,-10,0,0,-10,-5,5, 5,10,10,-20,-20,10,10,5, 0,0,0,0,0,0,0,0];
 function evaluatePosition(g) {
   if (g.in_checkmate()) return g.turn() === 'w' ? -99999 : 99999;
   if (g.in_draw()) return 0;
-
   let score = 0;
   const grid = g.board();
-  for (let r = 0; r < 8; r++) {
-    for (let c = 0; c < 8; c++) {
-      const p = grid[r][c];
-      if (!p) continue;
-      let val = PIECE_VALUES[p.type];
-      if (p.type === 'p') {
-        const index = p.color === 'w' ? (r * 8 + c) : ((7 - r) * 8 + c);
-        val += PAWN_PST[index];
-      }
-      score += p.color === 'w' ? val : -val;
-    }
+  for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
+    const p = grid[r][c];
+    if (!p) continue;
+    let val = PIECE_VALUES[p.type];
+    if (p.type === 'p') val += PAWN_PST[p.color === 'w' ? (r*8+c) : ((7-r)*8+c)];
+    score += p.color === 'w' ? val : -val;
   }
   return g.turn() === 'w' ? score : -score;
 }
-
-function minimax(g, depth, alpha, beta, isMax) {
-  if (depth === 0 || g.game_over()) return evaluatePosition(g);
-  const moves = g.moves({ verbose: true });
-  if (isMax) {
-    let best = -Infinity;
-    for (const m of moves) {
-      g.move(m);
-      best = Math.max(best, minimax(g, depth - 1, alpha, beta, false));
-      g.undo();
-      alpha = Math.max(alpha, best);
-      if (beta <= alpha) break;
-    }
-    return best;
-  } else {
-    let best = Infinity;
-    for (const m of moves) {
-      g.move(m);
-      best = Math.min(best, minimax(g, depth - 1, alpha, beta, true));
-      g.undo();
-      beta = Math.min(beta, best);
-      if (beta <= alpha) break;
-    }
-    return best;
-  }
-}
-
 function getFallbackMove(g) {
   const moves = g.moves({ verbose: true });
   if (!moves.length) return { moves: [], score: 0 };
-  let bestMove = null;
-  let bestScore = -Infinity;
-  const turn = g.turn();
+  let bestMove = moves[0], bestScore = -Infinity;
   const tempGame = new Chess(g.fen());
   for (const m of moves) {
     tempGame.move(m);
@@ -420,13 +360,12 @@ function getFallbackMove(g) {
     tempGame.undo();
     if (score > bestScore) { bestScore = score; bestMove = m; }
   }
-  const scoreWhite = turn === 'w' ? bestScore : -bestScore;
-  return { moves: [bestMove.from + bestMove.to + (bestMove.promotion || '')], score: scoreWhite };
+  return { moves: [bestMove.from + bestMove.to + (bestMove.promotion || '')], score: g.turn() === 'w' ? bestScore : -bestScore };
 }
 
-// ============================================================
-// 4. АНАЛИЗ И ОЦЕНКА
-// ============================================================
+// ==========================================
+// АНАЛИЗ И ЛОГИРОВАНИЕ
+// ==========================================
 async function analyzePosition() {
   if (game.game_over()) {
     clearArrow();
@@ -441,54 +380,114 @@ async function analyzePosition() {
 
   const res = await getEngineMoves(fen, 150);
 
-  if (prevScoreWhite !== null && prevTurn !== null && res.score !== null) {
-    const currentScoreWhite = res.score;
-    let loss = prevTurn === 'w' ? (prevScoreWhite - currentScoreWhite) : (currentScoreWhite - prevScoreWhite);
-    showVerdict(loss);
-    updateAutoElo(loss);
-  } else {
-    document.getElementById('verdict').style.display = 'none';
-  }
-
-  prevScoreWhite = res.score;
-  prevTurn = currentTurn;
-
-  // Автоматически рисуем стрелку лучшего хода (если не выключено)
+  // Стрелка лучшего хода
   if (res.moves.length > 0) {
     drawArrow(res.moves[0].slice(0, 2), res.moves[0].slice(2, 4));
   } else {
     clearArrow();
   }
 
+  // Разбор предыдущего хода
+  if (prevScoreWhite !== null && prevTurn !== null && res.score !== null) {
+    const currentScoreWhite = res.score;
+    let loss = prevTurn === 'w' ? (prevScoreWhite - currentScoreWhite) : (currentScoreWhite - prevScoreWhite);
+    
+    // Оценка качества
+    showQualityLog(loss, prevTurn, currentScoreWhite, res.moves[0]);
+    updateAutoElo(loss);
+  }
+
+  prevScoreWhite = res.score;
+  prevTurn = currentTurn;
   document.getElementById('status').textContent = 'Ход ' + (currentTurn === 'w' ? 'белых' : 'чёрных');
   renderBoard();
 }
 
-function showVerdict(loss) {
-  const el = document.getElementById('verdict');
-  let text, cls;
-  if (loss <= -30)      { text = '🌟 Отличный ход!'; cls = 'v-excellent'; }
-  else if (loss <= 20)  { text = '👍 Хороший ход'; cls = 'v-good'; }
-  else if (loss <= 60)  { text = '😐 Нормально'; cls = 'v-neutral'; }
-  else if (loss <= 150) { text = '⚠️ Неточность'; cls = 'v-inaccuracy'; }
-  else if (loss <= 300) { text = '❌ Ошибка'; cls = 'v-mistake'; }
-  else                  { text = '💩 Полная хуйня'; cls = 'v-blunder'; }
-  el.textContent = text;
-  el.className = cls;
-  el.style.display = 'block';
+function showQualityLog(loss, turn, currentScoreWhite, bestMoveUci) {
+  let badgeText, badgeClass;
+  if (loss <= -30)      { badgeText = '🌟 Отлично'; badgeClass = 'badge-excellent'; }
+  else if (loss <= 20)  { badgeText = '👍 Хорошо'; badgeClass = 'badge-good'; }
+  else if (loss <= 60)  { badgeText = '😐 Нормально'; badgeClass = 'badge-neutral'; }
+  else if (loss <= 150) { badgeText = '⚠️ Неточность'; badgeClass = 'badge-inaccuracy'; }
+  else if (loss <= 300) { badgeText = '❌ Ошибка'; badgeClass = 'badge-mistake'; }
+  else                  { badgeText = '💩 Зевок'; badgeClass = 'badge-blunder'; }
+
+  // Форматируем оценку для UI (в пешках)
+  const evalInPawns = (currentScoreWhite / 100).toFixed(2);
+  const evalStr = currentScoreWhite > 0 ? `+${evalInPawns}` : evalInPawns;
+  const evalClass = currentScoreWhite >= 0 ? 'eval-pos' : 'eval-neg';
+
+  // Получаем историю ходов
+  const history = game.history({ verbose: true });
+  const lastMove = history[history.length - 1];
+  const moveNum = Math.ceil(history.length / 2);
+  const moveStr = lastMove ? `${moveNum}${turn === 'w' ? '.' : '...'} ${lastMove.san}` : 'Старт';
+
+  // Генерируем объяснение
+  let explanation = "";
+  if (lastMove) {
+    if (lastMove.san.includes('#')) explanation = "Мат! Игра окончена.";
+    else if (lastMove.captured) explanation = `Съедает ${PIECE_NAMES_RU[lastMove.captured]}. `;
+    else if (lastMove.san.includes('+')) explanation = "Объявляет шах. ";
+    else if (lastMove.promotion) explanation = "Превращение пешки! ";
+
+    if (loss > 150) {
+      explanation += `Зевок! Вы теряете материал. `;
+    } else if (loss > 50) {
+      explanation += `Ухудшает позицию. `;
+    } else if (loss < -20) {
+      explanation += `Отличный тактический ход. `;
+    } else {
+      explanation += `Хороший ход. `;
+    }
+  }
+
+  // Добавляем рекомендацию от движка
+  if (bestMoveUci) {
+    const tempGame = new Chess(game.fen());
+    try {
+      const from = bestMoveUci.slice(0, 2);
+      const to = bestMoveUci.slice(2, 4);
+      const prom = bestMoveUci.length > 4 ? bestMoveUci[4] : 'q';
+      const obj = tempGame.move({ from, to, promotion: prom });
+      if (obj && (loss > 20)) {
+        explanation += `Лучше было: ${obj.san}.`;
+      }
+    } catch(e) {}
+  }
+
+  // Создаем HTML для записи
+  const entry = document.createElement('div');
+  entry.className = 'log-entry';
+  entry.innerHTML = `
+    <div>
+      <span class="log-move">${moveStr}</span>
+      <span class="log-eval ${evalClass}">${evalStr}</span>
+    </div>
+    <div class="log-desc">
+      <span class="log-badge ${badgeClass}">${badgeText}</span>
+      ${explanation || 'Позиция оценена.'}
+    </div>
+  `;
+
+  const placeholder = document.getElementById('log-placeholder');
+  if (placeholder) placeholder.remove();
+
+  logEl.prepend(entry); // Новые ходы сверху
+  
+  // Ограничиваем лог 15 последними ходами
+  if (logEl.children.length > 15) {
+    logEl.removeChild(logEl.lastChild);
+  }
 }
 
-// ============================================================
-// 5. АВТО-ELO И ИМИТАЦИЯ ЧЕЛОВЕКА
-// ============================================================
 function updateAutoElo(loss) {
-  if (loss < 0) loss = 0; // Отрицательная потеря (улучшение) считаем за 0
+  if (loss < 0) loss = 0;
   cplHistory.push(loss);
-  if (cplHistory.length > 10) cplHistory.shift(); // Держим последние 10 ходов
+  if (cplHistory.length > 10) cplHistory.shift();
 
   const avgCpl = cplHistory.reduce((a, b) => a + b, 0) / cplHistory.length;
   let recElo = 1500;
-
   if (avgCpl < 25) recElo = 2400;
   else if (avgCpl < 50) recElo = 2000;
   else if (avgCpl < 80) recElo = 1700;
@@ -498,7 +497,6 @@ function updateAutoElo(loss) {
 
   document.getElementById('recommended-elo').textContent = recElo + ' Elo';
 
-  // Если включен авто-режим, двигаем ползунок
   if (document.getElementById('auto-elo-toggle').checked) {
     currentElo = recElo;
     document.getElementById('elo-slider').value = currentElo;
@@ -507,6 +505,9 @@ function updateAutoElo(loss) {
   }
 }
 
+// ==========================================
+// ПОДСКАЗКА С ТАЙМЕРОМ
+// ==========================================
 function getHumanDelay() {
   return Math.floor(Math.random() * 7000) + 3000; // 3-10 секунд
 }
@@ -533,9 +534,22 @@ async function handleHint() {
   if (isAnalyzing || game.game_over()) return;
   isAnalyzing = true;
   document.getElementById('btn-hint').disabled = true;
-  document.getElementById('status').textContent = '🤔 Бот думает...';
-
+  
   const delay = getHumanDelay();
+  let timeLeft = Math.ceil(delay / 1000);
+  
+  // Запускаем визуальный таймер
+  document.getElementById('status').textContent = `🤔 Бот думает: ${timeLeft}с...`;
+  hintInterval = setInterval(() => {
+    timeLeft--;
+    if (timeLeft > 0) {
+      document.getElementById('status').textContent = `🤔 Бот думает: ${timeLeft}с...`;
+    } else {
+      clearInterval(hintInterval);
+      document.getElementById('status').textContent = `🤔 Бот делает выбор...`;
+    }
+  }, 1000);
+
   const startTime = Date.now();
   const res = await getEngineMoves(game.fen(), 200);
   
@@ -545,6 +559,8 @@ async function handleHint() {
   const elapsed = Date.now() - startTime;
   if (delay - elapsed > 0) await new Promise(r => setTimeout(r, delay - elapsed));
 
+  clearInterval(hintInterval);
+
   if (bestMove) drawArrow(bestMove.slice(0, 2), bestMove.slice(2, 4));
   else clearArrow();
 
@@ -553,9 +569,9 @@ async function handleHint() {
   isAnalyzing = false;
 }
 
-// ============================================================
-// 6. ОТРИСОВКА ДОСКИ И СТРЕЛОК (Чистый CSS/SVG)
-// ============================================================
+// ==========================================
+// ОТРИСОВКА
+// ==========================================
 function renderBoard() {
   boardEl.innerHTML = '';
   const grid = game.board();
@@ -578,17 +594,14 @@ function renderBoard() {
 
       const sq = document.createElement('div');
       sq.className = 'sq ' + ((r + c) % 2 === 0 ? 'light' : 'dark');
-      sq.dataset.sq = sqName;
-
+      
       if (selectedSquare === sqName) sq.classList.add('sel');
       if (lastMoveSquares.includes(sqName)) sq.classList.add('last-move');
       if (checkSq === sqName) sq.classList.add('in-check');
 
-      // Координаты
       if (dr === 7) { const f = document.createElement('span'); f.className = 'coord-file'; f.textContent = file; sq.appendChild(f); }
       if (dc === 0) { const rk = document.createElement('span'); rk.className = 'coord-rank'; rk.textContent = rank; sq.appendChild(rk); }
 
-      // Фигура
       const p = grid[r][c];
       if (p) {
         const img = document.createElement('img');
@@ -603,13 +616,12 @@ function renderBoard() {
 }
 
 function onSquareClick(sq) {
-  if (game.game_over()) return;
+  if (game.game_over() || isAnalyzing) return;
 
   if (selectedSquare) {
     const move = game.move({ from: selectedSquare, to: sq, promotion: 'q' });
     if (move) {
       selectedSquare = null; legalTargets = []; lastMoveSquares = [move.from, move.to];
-      document.getElementById('verdict').style.display = 'none';
       clearArrow();
       renderBoard();
       analyzePosition();
@@ -627,24 +639,20 @@ function onSquareClick(sq) {
   renderBoard();
 }
 
-// Рисование стрелки
 function drawArrow(from, to) {
   clearArrow();
   if (!from || !to) return;
 
   const getXY = (sq) => {
-    let file = sq.charCodeAt(0) - 97; // a=0
-    let rank = parseInt(sq[1], 10) - 1; // 1=0
+    let file = sq.charCodeAt(0) - 97;
+    let rank = parseInt(sq[1], 10) - 1;
     if (boardFlipped) { file = 7 - file; rank = 7 - rank; }
-    const x = (file + 0.5) * 12.5;
-    const y = (7 - rank + 0.5) * 12.5;
-    return { x: `${x}%`, y: `${y}%` };
+    return { x: `${(file + 0.5) * 12.5}%`, y: `${(7 - rank + 0.5) * 12.5}%` };
   };
 
-  const p1 = getXY(from);
-  const p2 = getXY(to);
-
+  const p1 = getXY(from), p2 = getXY(to);
   const svgNS = "http://www.w3.org/2000/svg";
+  
   const line = document.createElementNS(svgNS, "line");
   line.setAttribute("x1", p1.x); line.setAttribute("y1", p1.y);
   line.setAttribute("x2", p2.x); line.setAttribute("y2", p2.y);
@@ -654,15 +662,11 @@ function drawArrow(from, to) {
 
   const defs = document.createElementNS(svgNS, "defs");
   const marker = document.createElementNS(svgNS, "marker");
-  marker.setAttribute("id", "arrowhead");
-  marker.setAttribute("markerWidth", "4");
-  marker.setAttribute("markerHeight", "4");
-  marker.setAttribute("refX", "2");
-  marker.setAttribute("refY", "2");
-  marker.setAttribute("orient", "auto");
+  marker.setAttribute("id", "arrowhead"); marker.setAttribute("markerWidth", "4");
+  marker.setAttribute("markerHeight", "4"); marker.setAttribute("refX", "2");
+  marker.setAttribute("refY", "2"); marker.setAttribute("orient", "auto");
   const poly = document.createElementNS(svgNS, "polygon");
-  poly.setAttribute("points", "0,0 4,2 0,4");
-  poly.setAttribute("fill", "rgba(0, 230, 118, 0.8)");
+  poly.setAttribute("points", "0,0 4,2 0,4"); poly.setAttribute("fill", "rgba(0, 230, 118, 0.8)");
   marker.appendChild(poly); defs.appendChild(marker);
   
   arrowOverlay.innerHTML = '';
@@ -670,30 +674,38 @@ function drawArrow(from, to) {
   arrowOverlay.appendChild(line);
 }
 
-function clearArrow() {
-  arrowOverlay.innerHTML = '';
-}
+function clearArrow() { arrowOverlay.innerHTML = ''; }
 
-// ============================================================
-// 7. УПРАВЛЕНИЕ И СТАРТ
-// ============================================================
+// ==========================================
+// УПРАВЛЕНИЕ
+// ==========================================
 function resetGame() {
   game = new Chess();
   clearArrow();
-  document.getElementById('verdict').style.display = 'none';
+  logEl.innerHTML = '<div style="text-align: center; color: #666; font-style: italic;" id="log-placeholder">Сделайте ход, чтобы увидеть анализ</div>';
   prevScoreWhite = null; prevTurn = null; cplHistory = [];
   document.getElementById('recommended-elo').textContent = '--';
   selectedSquare = null; lastMoveSquares = [];
+  if (hintInterval) clearInterval(hintInterval);
+  isAnalyzing = false;
+  document.getElementById('btn-hint').disabled = false;
+  
   if (stockfish && engineReady) stockfish.postMessage('ucinewgame');
   renderBoard();
   analyzePosition();
 }
 
 function undoMove() {
-  if (game.history().length === 0) return;
+  if (game.history().length === 0 || isAnalyzing) return;
   game.undo();
   clearArrow();
-  document.getElementById('verdict').style.display = 'none';
+  // Удаляем последнюю запись из лога
+  if (logEl.children.length > 1 || logEl.children[0].id !== 'log-placeholder') {
+    logEl.removeChild(logEl.firstChild);
+    if (logEl.children.length === 0) {
+      logEl.innerHTML = '<div style="text-align: center; color: #666; font-style: italic;" id="log-placeholder">Сделайте ход, чтобы увидеть анализ</div>';
+    }
+  }
   prevScoreWhite = null; prevTurn = null;
   selectedSquare = null; lastMoveSquares = [];
   renderBoard();
@@ -703,12 +715,9 @@ function undoMove() {
 function flipBoard() {
   boardFlipped = !boardFlipped;
   renderBoard();
-  // Перерисовываем стрелку, если она была
-  // (Для простоты просто очищаем)
   clearArrow();
 }
 
-// Настройки слайдера
 const eloSlider = document.getElementById('elo-slider');
 const eloValue = document.getElementById('elo-value');
 
@@ -716,18 +725,15 @@ eloSlider.addEventListener('input', (e) => {
   currentElo = parseInt(e.target.value, 10);
   eloValue.textContent = currentElo + ' Elo';
   updateEngineStrength();
-  // Если пользователь двигает ползунок вручную, отключаем авто-режим
   document.getElementById('auto-elo-toggle').checked = false;
 });
 
-// Привязка кнопок
 document.getElementById('btn-new').addEventListener('click', resetGame);
 document.getElementById('btn-undo').addEventListener('click', undoMove);
 document.getElementById('btn-flip').addEventListener('click', flipBoard);
 document.getElementById('btn-hint').addEventListener('click', handleHint);
 document.getElementById('btn-clear-arrow').addEventListener('click', clearArrow);
 
-// Инициализация при загрузке
 renderBoard();
 initStockfish();
 </script>

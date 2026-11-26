@@ -592,4 +592,202 @@ function hideQuality() {
 }
 
 /* ============================================================
-   Резервная оценка
+   Резервная оценка (если Stockfish недоступен)
+   ============================================================ */
+function evaluatePosition(g) {
+  if (g.in_checkmate()) return g.turn() === 'w' ? -100000 : 100000;
+  if (g.in_draw()) return 0;
+
+  let score = 0;
+  const grid = g.board();
+
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      const p = grid[r][c];
+      if (!p) continue;
+      const v = PIECE_VALUE[p.type] || 0;
+      score += p.color === 'w' ? v : -v;
+    }
+  }
+
+  // Контроль центра
+  for (const sq of ['d4','e4','d5','e5']) {
+    const p = g.get(sq);
+    if (p && (p.type === 'p' || p.type === 'n' || p.type === 'b')) {
+      score += p.color === 'w' ? 12 : -12;
+    }
+  }
+
+  // Безопасность короля — упрощённо
+  const wK = findKing(g, 'w');
+  const bK = findKing(g, 'b');
+  if (wK) score += kingBonus(wK, 'w');
+  if (bK) score -= kingBonus(bK, 'b');
+
+  return g.turn() === 'w' ? score : -score;
+}
+function findKing(g, color) {
+  const grid = g.board();
+  for (let r = 0; r < 8; r++)
+    for (let c = 0; c < 8; c++) {
+      const p = grid[r][c];
+      if (p && p.type === 'k' && p.color === color) return 'abcdefgh'[c] + (8 - r);
+    }
+  return null;
+}
+function kingBonus(sq, color) {
+  if ((color === 'w' && sq === 'e1') || (color === 'b' && sq === 'e8')) return 30;
+  const f = sq[0], rk = parseInt(sq[1], 10);
+  if (rk >= 3 && rk <= 6 && f >= 'c' && f <= 'f') return -25;
+  return 0;
+}
+
+function minimax(g, depth, alpha, beta, maximizing) {
+  if (depth === 0 || g.game_over()) return evaluatePosition(g);
+  const moves = g.moves({ verbose: true });
+  if (moves.length === 0) return evaluatePosition(g);
+
+  if (maximizing) {
+    let best = -Infinity;
+    for (const m of moves) {
+      g.move(m);
+      const e = minimax(g, depth - 1, alpha, beta, false);
+      g.undo();
+      best = Math.max(best, e);
+      alpha = Math.max(alpha, e);
+      if (beta <= alpha) break;
+    }
+    return best;
+  } else {
+    let best = Infinity;
+    for (const m of moves) {
+      g.move(m);
+      const e = minimax(g, depth - 1, alpha, beta, true);
+      g.undo();
+      best = Math.min(best, e);
+      beta = Math.min(beta, e);
+      if (beta <= alpha) break;
+    }
+    return best;
+  }
+}
+
+function getBestMoveFallback(g, depth = 2) {
+  const moves = g.moves({ verbose: true });
+  if (moves.length === 0) return null;
+
+  let bestMove = null;
+  let bestScore = -Infinity;
+
+  for (const m of moves) {
+    g.move(m);
+    const score = -minimax(g, depth - 1, -Infinity, Infinity, true);
+    g.undo();
+    if (score > bestScore) { bestScore = score; bestMove = m; }
+  }
+  return bestMove;
+}
+
+/* ============================================================
+   Кнопки
+   ============================================================ */
+function resetGame() {
+  game = new Chess();
+  selectedSquare = null;
+  lastMoveSquares = [];
+  bestMoveHint = null;
+  legalTargets = [];
+  previousBotScore = null;
+  botThinking = false;
+  hideQuality();
+
+  // Правильная ориентация доски под цвет игрока
+  boardFlipped = (playerColor === 'b');
+
+  if (stockfish && engineReady) {
+    stockfish.postMessage('ucinewgame');
+    stockfish.postMessage('isready');
+  }
+
+  renderBoard();
+
+  // Если игрок за чёрных — бот (белые) ходит первым
+  if (game.turn() !== playerColor) {
+    setTimeout(() => doBotMove(), 300);
+  }
+}
+
+function switchColor() {
+  playerColor = playerColor === 'w' ? 'b' : 'w';
+  const btn = document.getElementById('btn-color');
+  btn.textContent = playerColor === 'w' ? '⚫ Играть за чёрных' : '⚪ Играть за белых';
+  resetGame();
+}
+
+function flipBoard() {
+  boardFlipped = !boardFlipped;
+  renderBoard();
+}
+
+function undoMove() {
+  if (botThinking || game.history().length === 0) return;
+
+  const hist = game.history({ verbose: true });
+  let playerMoveIdx = -1;
+  for (let i = hist.length - 1; i >= 0; i--) {
+    if (hist[i].color === playerColor) { playerMoveIdx = i; break; }
+  }
+
+  if (playerMoveIdx === -1) return; // нет ходов игрока — нечего отменять
+
+  // Отменяем все ходы начиная с последнего хода игрока
+  while (game.history().length > playerMoveIdx) {
+    game.undo();
+  }
+
+  selectedSquare = null;
+  legalTargets = [];
+  bestMoveHint = null;
+  lastMoveSquares = [];
+  previousBotScore = null;
+  hideQuality();
+  renderBoard();
+}
+
+function showHint() {
+  if (game.game_over() || botThinking) return;
+  if (game.turn() !== playerColor) return;
+
+  getEngineMoves(game.fen(), 200).then(res => {
+    if (res.moves.length > 0) {
+      const m = res.moves[0];
+      bestMoveHint = { from: m.slice(0, 2), to: m.slice(2, 4) };
+      renderBoard();
+    } else {
+      const fb = getBestMoveFallback(game, 2);
+      if (fb) {
+        bestMoveHint = { from: fb.from, to: fb.to };
+        renderBoard();
+      }
+    }
+  });
+}
+
+/* ============================================================
+   Старт
+   ============================================================ */
+(function init() {
+  initStockfish();
+  renderBoard();
+
+  setTimeout(() => {
+    if (!engineReady && !engineFailed) {
+      engineFailed = true;
+      document.getElementById('engine-status').textContent =
+        '⚠ Движок не загрузился вовремя. Используется резервная логика.';
+    }
+  }, 6000);
+})();
+</script>
+</body>
+</html>

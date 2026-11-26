@@ -159,12 +159,20 @@
   <button id="btn-new" onclick="resetGame()">🔄 Новая игра</button>
   <button id="btn-undo" onclick="undoMove()">↶ Ход назад</button>
   <button id="btn-flip" onclick="flipBoard()">🔃 Перевернуть</button>
-  <button id="btn-color" onclick="switchColor()">⚫ Играть за чёрных</button>
   <button id="btn-hint" onclick="showHint()">💡 Подсказка</button>
 </div>
 <div id="engine-status">Инициализация…</div>
 
 <script>
+/* ============================================================
+   Проверка загрузки chess.js
+   ============================================================ */
+if (typeof Chess === 'undefined') {
+  document.getElementById('status').textContent = '❌ Ошибка: chess.js не загрузился. Проверьте сеть.';
+  document.getElementById('engine-status').textContent = 'CDN chess.js недоступен';
+  throw new Error('chess.js not loaded');
+}
+
 /* ============================================================
    Константы и состояние
    ============================================================ */
@@ -178,7 +186,7 @@ let game = new Chess();
 let selectedSquare   = null;
 let lastMoveSquares  = [];
 let bestMoveHint     = null;
-let playerColor      = 'w';     // за кого играет человек
+let playerColor      = 'w';     // за кого играет человек (фиксировано — белые)
 let boardFlipped     = false;   // перевёрнута ли доска
 let botThinking      = false;
 let legalTargets     = [];      // { to, capture } для подсветки
@@ -193,6 +201,7 @@ let currentSearchResolve = null;
 let searchTimerId       = null;
 let multiPVLines        = {};
 let lastPrimaryScore    = null;
+let engineInitTimer     = null;
 
 /* ============================================================
    Инициализация движка
@@ -200,21 +209,40 @@ let lastPrimaryScore    = null;
 function initStockfish() {
   const st = document.getElementById('engine-status');
   try {
-    stockfish = new Worker('https://cdn.jsdelivr.net/npm/stockfish.js@10.0.2/stockfish.js');
+    // Используем стабильный CDN cdnjs
+    const workerUrl = 'https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.1/stockfish.js';
+    stockfish = new Worker(workerUrl);
 
     stockfish.onerror = (e) => {
-      console.error('Stockfish error:', e);
+      console.error('Stockfish worker error:', e);
       engineFailed = true;
       st.textContent = '⚠ Движок не загрузился. Используется резервная логика.';
     };
+
     stockfish.onmessage = (ev) => handleEngineMessage(ev.data);
 
     stockfish.postMessage('uci');
     stockfish.postMessage('isready');
+
+    // Таймаут: если за 3 секунды движок не ответил — считаем, что не загрузился
+    engineInitTimer = setTimeout(() => {
+      if (!engineReady && !engineFailed) {
+        engineFailed = true;
+        st.textContent = '⚠ Движок не ответил за 3 сек. Резервная логика.';
+        // Принудительно отрисовываем доску, если ещё не отрисована
+        if (!document.getElementById('board').hasChildNodes()) {
+          renderBoard();
+        }
+      }
+    }, 3000);
+
   } catch (e) {
     console.error('Cannot create Stockfish worker:', e);
     engineFailed = true;
-    st.textContent = '⚠ Движок не загрузился. Используется резервная логика.';
+    st.textContent = '⚠ Ошибка создания Worker. Резервная логика.';
+    if (!document.getElementById('board').hasChildNodes()) {
+      renderBoard();
+    }
   }
 }
 
@@ -223,17 +251,22 @@ function handleEngineMessage(line) {
   const st = document.getElementById('engine-status');
 
   if (line === 'uciok') {
-    stockfish.postMessage('setoption name Skill Level value 2');
+    // Снимаем ограничение силы: Skill Level = 20 (максимум)
+    // UCI_LimitStrength не включаем, чтобы движок играл в полную силу
+    stockfish.postMessage('setoption name Skill Level value 20');
     stockfish.postMessage('setoption name MultiPV value 3');
-    stockfish.postMessage('setoption name UCI_LimitStrength value true');
-    stockfish.postMessage('setoption name UCI_Elo value 1300');
     stockfish.postMessage('isready');
     return;
   }
   if (line === 'readyok') {
     if (!engineReady) {
       engineReady = true;
-      st.textContent = '✅ Stockfish готов · уровень ~1300 Elo';
+      if (engineInitTimer) { clearTimeout(engineInitTimer); engineInitTimer = null; }
+      st.textContent = '✅ Stockfish готов (полная сила)';
+      // Если доска почему-то ещё не отрисована — рисуем
+      if (!document.getElementById('board').hasChildNodes()) {
+        renderBoard();
+      }
     }
     return;
   }
@@ -294,7 +327,6 @@ function getEngineMoves(fen, movetime = 120) {
     }
 
     if (currentSearchResolve) {
-      // Отменяем предыдущий поиск
       stockfish.postMessage('stop');
       currentSearchResolve = null;
     }
@@ -312,16 +344,16 @@ function getEngineMoves(fen, movetime = 120) {
 
     searchTimerId = setTimeout(() => {
       stockfish.postMessage('stop');
-    }, movtime_safe(movetime) + 2000);
+    }, movetime + 2000);
   });
 }
-function movtime_safe(v) { return v; }
 
 /* ============================================================
    Отрисовка доски
    ============================================================ */
 function renderBoard() {
   const boardEl = document.getElementById('board');
+  if (!boardEl) return;
   boardEl.innerHTML = '';
 
   const grid = game.board();
@@ -345,7 +377,6 @@ function renderBoard() {
       if (bestMoveHint && (bestMoveHint.from === squareName || bestMoveHint.to === squareName))
         sq.classList.add('hint-move');
 
-      // Подсветка легальных ходов для выбранной фигуры
       const targetInfo = legalTargets.find(t => t.to === squareName);
       if (targetInfo) {
         const mark = document.createElement('div');
@@ -353,7 +384,6 @@ function renderBoard() {
         sq.appendChild(mark);
       }
 
-      // Координаты
       if (dr === 7) {
         const f = document.createElement('span');
         f.className = 'coord-file';
@@ -367,7 +397,6 @@ function renderBoard() {
         sq.appendChild(rk);
       }
 
-      // Фигура
       const piece = grid[r][c];
       if (piece) {
         const span = document.createElement('span');
@@ -421,9 +450,8 @@ function updateStatus() {
    ============================================================ */
 function onSquareClick(square) {
   if (game.game_over() || botThinking) return;
-  if (game.turn() !== playerColor) return; // сейчас не ваш ход
+  if (game.turn() !== playerColor) return;
 
-  // Попытка сделать ход
   if (selectedSquare) {
     const move = game.move({
       from: selectedSquare,
@@ -445,7 +473,6 @@ function onSquareClick(square) {
     }
   }
 
-  // Выбор фигуры
   const piece = game.get(square);
   if (piece && piece.color === playerColor) {
     selectedSquare = square;
@@ -472,10 +499,9 @@ async function doBotMove() {
   const scoreBefore = previousBotScore;
 
   try {
-    const result = await getEngineMoves(game.fen(), 120);
+    const result = await getEngineMoves(game.fen(), 150);
 
     if (game.game_over() || game.turn() === playerColor) {
-      // Состояние изменилось — выходим
       return;
     }
 
@@ -485,12 +511,10 @@ async function doBotMove() {
     }
 
     if (!moveStr) {
-      // Резервный вариант
       const fb = getBestMoveFallback(game, 2);
       if (fb) moveStr = fb.from + fb.to + (fb.promotion || '');
     }
     if (!moveStr) {
-      // Совсем крайний случай
       const ms = game.moves();
       if (ms.length > 0) moveStr = ms[Math.floor(Math.random() * ms.length)];
     }
@@ -508,7 +532,6 @@ async function doBotMove() {
     }
   } catch (err) {
     console.error('Bot move error:', err);
-    // Аварийный резерв
     const fb = getBestMoveFallback(game, 2);
     if (fb) {
       const mv = game.move(fb);
@@ -520,7 +543,6 @@ async function doBotMove() {
     legalTargets = [];
     renderBoard();
 
-    // Показ качества хода игрока (сравниваем "до" и "после")
     if (scoreBefore !== null && previousBotScore !== null) {
       const loss = previousBotScore - scoreBefore;
       showQuality(loss);
@@ -528,14 +550,10 @@ async function doBotMove() {
   }
 }
 
-/* ============================================================
-   Выбор хода (случайность + защита от зевка мата)
-   ============================================================ */
 function pickMoveWithRandomness(candidates) {
   if (!candidates || candidates.length === 0) return null;
   if (candidates.length === 1) return candidates[0];
 
-  // Отбрасываем явные зевки (мат в 1)
   const safe = candidates.filter(mv => {
     try {
       const test = new Chess(game.fen());
@@ -560,7 +578,6 @@ function pickMoveWithRandomness(candidates) {
 
   const pool = safe.length > 0 ? safe : candidates;
 
-  // В 20% случаев берём не лучший, а 2-й/3-й
   if (Math.random() < 0.20 && pool.length > 1) {
     const idx = 1 + Math.floor(Math.random() * Math.min(2, pool.length - 1));
     return pool[idx];
@@ -610,7 +627,6 @@ function evaluatePosition(g) {
     }
   }
 
-  // Контроль центра
   for (const sq of ['d4','e4','d5','e5']) {
     const p = g.get(sq);
     if (p && (p.type === 'p' || p.type === 'n' || p.type === 'b')) {
@@ -618,7 +634,6 @@ function evaluatePosition(g) {
     }
   }
 
-  // Безопасность короля — упрощённо
   const wK = findKing(g, 'w');
   const bK = findKing(g, 'b');
   if (wK) score += kingBonus(wK, 'w');
@@ -701,8 +716,7 @@ function resetGame() {
   botThinking = false;
   hideQuality();
 
-  // Правильная ориентация доски под цвет игрока
-  boardFlipped = (playerColor === 'b');
+  boardFlipped = false;
 
   if (stockfish && engineReady) {
     stockfish.postMessage('ucinewgame');
@@ -711,17 +725,9 @@ function resetGame() {
 
   renderBoard();
 
-  // Если игрок за чёрных — бот (белые) ходит первым
   if (game.turn() !== playerColor) {
     setTimeout(() => doBotMove(), 300);
   }
-}
-
-function switchColor() {
-  playerColor = playerColor === 'w' ? 'b' : 'w';
-  const btn = document.getElementById('btn-color');
-  btn.textContent = playerColor === 'w' ? '⚫ Играть за чёрных' : '⚪ Играть за белых';
-  resetGame();
 }
 
 function flipBoard() {
@@ -738,9 +744,8 @@ function undoMove() {
     if (hist[i].color === playerColor) { playerMoveIdx = i; break; }
   }
 
-  if (playerMoveIdx === -1) return; // нет ходов игрока — нечего отменять
+  if (playerMoveIdx === -1) return;
 
-  // Отменяем все ходы начиная с последнего хода игрока
   while (game.history().length > playerMoveIdx) {
     game.undo();
   }
@@ -777,16 +782,8 @@ function showHint() {
    Старт
    ============================================================ */
 (function init() {
+  renderBoard(); // сначала рисуем доску, чтобы она появилась сразу
   initStockfish();
-  renderBoard();
-
-  setTimeout(() => {
-    if (!engineReady && !engineFailed) {
-      engineFailed = true;
-      document.getElementById('engine-status').textContent =
-        '⚠ Движок не загрузился вовремя. Используется резервная логика.';
-    }
-  }, 6000);
 })();
 </script>
 </body>

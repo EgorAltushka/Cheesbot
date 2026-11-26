@@ -3,8 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>Шахматы — Stockfish</title>
-<!-- Библиотека шахмат -->
+<title>Шахматы — Тренер (Stockfish)</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
 <style>
   :root {
@@ -113,7 +112,7 @@
 </style>
 </head>
 <body>
-<h2>♟ Шахматы</h2>
+<h2>♟ Шахматный Тренер</h2>
 <div id="status">Ход белых</div>
 <div id="quality"></div>
 <div id="board-wrap"><div id="board"></div></div>
@@ -121,12 +120,11 @@
   <button onclick="resetGame()">🔄 Новая игра</button>
   <button onclick="undoMove()">↶ Ход назад</button>
   <button onclick="flipBoard()">🔃 Перевернуть</button>
-  <button onclick="showHint()">💡 Подсказка</button>
+  <button onclick="analyzePosition()">💡 Подсказка</button>
 </div>
 <div id="engine-status">Инициализация...</div>
 
 <script>
-// Проверка, что библиотека загрузилась
 if (typeof Chess === 'undefined') {
   document.getElementById('status').textContent = '❌ Ошибка загрузки chess.js. Проверьте интернет.';
   throw new Error('chess.js missing');
@@ -140,11 +138,12 @@ let selectedSquare = null;
 let lastMoveSquares = [];
 let bestMoveHint = null;
 let boardFlipped = false;
-let botThinking = false;
 let legalTargets = [];
-let previousBotScore = null;
 
-// --- Движок ---
+// Переменные для оценки качества хода
+let prevScoreWhite = null; // Оценка позиции (в сантипешках) с точки зрения белых
+let prevTurn = null;       // Чей был ход перед текущим анализом
+
 let stockfish = null;
 let engineReady = false;
 let engineFailed = false;
@@ -154,14 +153,11 @@ let multiPVLines = {};
 let lastPrimaryScore = null;
 
 // ==========================================
-// 1. ИНИЦИАЛИЗАЦИЯ ДВИЖКА (Обход блокировок)
+// 1. ИНИЦИАЛИЗАЦИЯ ДВИЖКА
 // ==========================================
 async function initStockfish() {
   const st = document.getElementById('engine-status');
-  
   try {
-    // Скачиваем скрипт как текст и создаем локальный Blob. 
-    // Это обходит блокировки Web Worker на GitHub Pages и мобильных.
     const url = 'https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.1/stockfish.js';
     const response = await fetch(url);
     if (!response.ok) throw new Error('Fetch failed');
@@ -182,7 +178,6 @@ async function initStockfish() {
     stockfish.postMessage('uci');
     stockfish.postMessage('isready');
 
-    // Если за 2.5 секунды не ответил — считаем сломанным
     setTimeout(() => { if (!engineReady) failEngine('Движок не отвечает. Резервный режим.'); }, 2500);
 
   } catch (e) {
@@ -201,9 +196,8 @@ function handleEngineMessage(line) {
   if (typeof line !== 'string') return;
 
   if (line === 'uciok') {
-    // Снимаем ограничения ELO, ставим максимальный скилл
     stockfish.postMessage('setoption name Skill Level value 20');
-    stockfish.postMessage('setoption name MultiPV value 3'); // Для выбора 2-3 хода
+    stockfish.postMessage('setoption name MultiPV value 3');
     stockfish.postMessage('isready');
     return;
   }
@@ -211,6 +205,7 @@ function handleEngineMessage(line) {
     if (!engineReady) {
       engineReady = true;
       document.getElementById('engine-status').textContent = '✅ Stockfish готов (Макс. сила)';
+      analyzePosition(); // Анализируем стартовую позицию
     }
     return;
   }
@@ -244,10 +239,10 @@ function handleEngineMessage(line) {
   }
 }
 
-function getEngineMoves(fen, movetime = 100) {
+function getEngineMoves(fen, movetime = 150) {
   return new Promise((resolve) => {
     if (!engineReady || engineFailed || !stockfish) {
-      return resolve(getFallbackMove(game)); // Резерв
+      return resolve(getFallbackMove(game));
     }
     if (currentSearchResolve) { stockfish.postMessage('stop'); currentSearchResolve = null; }
 
@@ -265,9 +260,8 @@ function getEngineMoves(fen, movetime = 100) {
 }
 
 // ==========================================
-// 2. РЕЗЕРВНЫЙ АЛГОРИТМ (Если движок умер)
+// 2. РЕЗЕРВНЫЙ АЛГОРИТМ (Если движок не загрузился)
 // ==========================================
-// Улучшенная оценка, чтобы не гонять пешки по краям
 const PAWN_PST = [
    0,  0,  0,  0,  0,  0,  0,  0,
   50, 50, 50, 50, 50, 50, 50, 50,
@@ -290,8 +284,6 @@ function evaluatePosition(g) {
       const p = grid[r][c];
       if (!p) continue;
       let val = PIECE_VALUE[p.type];
-      
-      // Бонус за центр для пешек
       if (p.type === 'p') {
         const index = p.color === 'w' ? (r * 8 + c) : ((7 - r) * 8 + c);
         val += PAWN_PST[index];
@@ -330,33 +322,97 @@ function minimax(g, depth, alpha, beta, isMax) {
 
 function getFallbackMove(g) {
   const moves = g.moves({ verbose: true });
-  if (!moves.length) return { moves: [], score: null };
+  if (!moves.length) return { moves: [], score: 0 };
   
   let bestMove = null;
   let bestScore = -Infinity;
+  const turn = g.turn();
   
-  // Глубина 2 для скорости
   for (const m of moves) {
     g.move(m);
-    const score = -minimax(g, 1, -Infinity, Infinity, true);
+    // Оценка с точки зрения ходившего (после хода ход перешел к противнику, поэтому инвертируем)
+    const score = -evaluatePosition(g);
     g.undo();
-    if (score > bestScore) { bestScore = score; bestMove = m; }
+    
+    if (score > bestScore) {
+      bestScore = score;
+      bestMove = m;
+    }
   }
   
-  // Имитация MultiPV: собираем пару хороших ходов
-  const cand = [bestMove.from + bestMove.to];
-  return { moves: cand, score: bestScore };
+  // Приводим оценку к точке зрения белых
+  const scoreWhite = turn === 'w' ? bestScore : -bestScore;
+  return { moves: [bestMove.from + bestMove.to + (bestMove.promotion || '')], score: scoreWhite };
 }
 
 // ==========================================
-// 3. ОТРИСОВКА И ИГРА
+// 3. АНАЛИЗ И ОЦЕНКА КАЧЕСТВА ХОДА
+// ==========================================
+async function analyzePosition() {
+  if (game.game_over()) {
+    bestMoveHint = null;
+    renderBoard();
+    return;
+  }
+
+  const currentTurn = game.turn();
+  const fen = game.fen();
+  
+  // Запрашиваем у движка лучший ход и оценку текущей позиции
+  const res = await getEngineMoves(fen, 150);
+  
+  // Устанавливаем подсказку (зеленая рамка)
+  if (res.moves.length > 0) {
+    bestMoveHint = { from: res.moves[0].slice(0,2), to: res.moves[0].slice(2,4) };
+  } else {
+    bestMoveHint = null;
+  }
+
+  // Оценка качества ПРЕДЫДУЩЕГО хода
+  if (prevScoreWhite !== null && prevTurn !== null && res.score !== null) {
+    const currentScoreWhite = res.score;
+    let loss;
+    
+    // Если ходили белые: потеря = оценка до - оценка после
+    // Если ходили черные: оценка до для них была -prevScoreWhite, после -currentScoreWhite
+    // Потеря = (-prevScoreWhite) - (-currentScoreWhite) = currentScoreWhite - prevScoreWhite
+    if (prevTurn === 'w') {
+      loss = prevScoreWhite - currentScoreWhite;
+    } else {
+      loss = currentScoreWhite - prevScoreWhite;
+    }
+    
+    showQuality(loss);
+  } else {
+    document.getElementById('quality').style.display = 'none';
+  }
+  
+  // Запоминаем оценку для следующего хода
+  prevScoreWhite = res.score;
+  prevTurn = currentTurn;
+  
+  renderBoard();
+}
+
+function showQuality(loss) {
+  const el = document.getElementById('quality');
+  if (loss <= -30) { el.textContent = '🌟 Отличный ход!'; el.className = 'quality-excellent'; }
+  else if (loss <= 20) { el.textContent = '👍 Хороший ход'; el.className = 'quality-good'; }
+  else if (loss <= 60) { el.textContent = '😐 Нормально'; el.className = 'quality-neutral'; }
+  else if (loss <= 150) { el.textContent = '⚠️ Неточность'; el.className = 'quality-inaccuracy'; }
+  else if (loss <= 300) { el.textContent = '❌ Ошибка'; el.className = 'quality-mistake'; }
+  else { el.textContent = '💩 Полная хуйня'; el.className = 'quality-blunder'; }
+  el.style.display = 'block';
+}
+
+// ==========================================
+// 4. ОТРИСОВКА И ИГРА
 // ==========================================
 function renderBoard() {
   const boardEl = document.getElementById('board');
   boardEl.innerHTML = '';
   const grid = game.board();
   
-  // Поиск короля под шахом
   let checkSq = null;
   if (game.in_check()) {
     for (let r=0; r<8; r++) for(let c=0; c<8; c++) {
@@ -406,28 +462,31 @@ function updateStatus() {
     if (game.in_checkmate()) el.textContent = '♛ Мат! Победили ' + (game.turn()==='w'?'чёрные':'белые');
     else el.textContent = '½ Ничья';
   } else {
-    el.textContent = 'Ход ' + (game.turn()==='w'?'белых':'чёрных') + (game.turn()==='w'?' (ваш)':'');
+    el.textContent = 'Ход ' + (game.turn()==='w'?'белых':'чёрных');
   }
 }
 
 function onSquareClick(sq) {
-  if (game.game_over() || botThinking || game.turn() !== 'w') return;
+  if (game.game_over()) return;
 
+  // Попытка сделать ход
   if (selectedSquare) {
     const move = game.move({ from: selectedSquare, to: sq, promotion: 'q' });
     if (move) {
       selectedSquare = null; legalTargets = []; bestMoveHint = null;
       lastMoveSquares = [move.from, move.to];
-      document.getElementById('quality').style.display = 'none';
+      document.getElementById('quality').style.display = 'none'; // Скрываем старую оценку
       renderBoard();
       
-      if (!game.game_over()) setTimeout(doBotMove, 50);
+      // Запускаем анализ новой позиции
+      analyzePosition();
       return;
     }
   }
 
+  // Выбор фигуры (теперь можно выбирать ЛЮБУЮ фигуру, чей сейчас ход)
   const p = game.get(sq);
-  if (p && p.color === 'w') {
+  if (p && p.color === game.turn()) {
     selectedSquare = sq;
     legalTargets = game.moves({ square: sq, verbose: true }).map(m => ({ to: m.to, capture: !!m.captured }));
   } else {
@@ -436,94 +495,30 @@ function onSquareClick(sq) {
   renderBoard();
 }
 
-async function doBotMove() {
-  if (game.game_over() || botThinking || game.turn() !== 'b') return;
-  botThinking = true;
-  document.getElementById('status').textContent = '🤔 Бот думает...';
-  
-  const scoreBefore = previousBotScore;
-  let res = { moves: [], score: null };
-
-  try {
-    res = await getEngineMoves(game.fen(), 100); // 100мс на ход
-    
-    let moveStr = null;
-    if (res.moves.length > 0) {
-      // 20% шанс взять не первый ход
-      if (res.moves.length > 1 && Math.random() < 0.2) {
-        moveStr = res.moves[Math.floor(Math.random() * res.moves.length)];
-      } else {
-        moveStr = res.moves[0];
-      }
-    }
-
-    if (moveStr) {
-      const mv = game.move({ from: moveStr.slice(0,2), to: moveStr.slice(2,4), promotion: 'q' });
-      if (mv) {
-        lastMoveSquares = [mv.from, mv.to];
-        previousBotScore = res.score;
-      }
-    }
-  } catch (e) {
-    console.error(e);
-  } finally {
-    botThinking = false;
-    selectedSquare = null; legalTargets = [];
-    renderBoard();
-
-    // Оценка хода игрока
-    if (scoreBefore !== null && previousBotScore !== null) {
-      const loss = previousBotScore - scoreBefore;
-      showQuality(loss);
-    }
-  }
-}
-
-function showQuality(loss) {
-  const el = document.getElementById('quality');
-  if (loss <= -30) { el.textContent = '🌟 Отличный ход!'; el.className = 'quality-excellent'; }
-  else if (loss <= 20) { el.textContent = '👍 Хороший ход'; el.className = 'quality-good'; }
-  else if (loss <= 60) { el.textContent = '😐 Нормально'; el.className = 'quality-neutral'; }
-  else if (loss <= 150) { el.textContent = '⚠️ Неточность'; el.className = 'quality-inaccuracy'; }
-  else if (loss <= 300) { el.textContent = '❌ Ошибка'; el.className = 'quality-mistake'; }
-  else { el.textContent = '💩 Полная хуйня'; el.className = 'quality-blunder'; }
-  el.style.display = 'block';
-}
-
 // ==========================================
-// 4. КНОПКИ
+// 5. КНОПКИ
 // ==========================================
 function resetGame() {
   game = new Chess();
   selectedSquare = null; lastMoveSquares = []; bestMoveHint = null; legalTargets = [];
-  previousBotScore = null; botThinking = false;
+  prevScoreWhite = null; prevTurn = null;
   document.getElementById('quality').style.display = 'none';
   if (stockfish && engineReady) stockfish.postMessage('ucinewgame');
   renderBoard();
+  analyzePosition(); // Анализ первого хода
 }
 
 function flipBoard() { boardFlipped = !boardFlipped; renderBoard(); }
 
 function undoMove() {
-  if (botThinking || game.history().length === 0) return;
-  // Отменяем 2 хода (ход бота и ваш)
+  if (game.history().length === 0) return;
   game.undo();
-  if (game.turn() === 'b') game.undo();
   
   selectedSquare = null; lastMoveSquares = []; bestMoveHint = null; legalTargets = [];
-  previousBotScore = null;
+  prevScoreWhite = null; prevTurn = null;
   document.getElementById('quality').style.display = 'none';
   renderBoard();
-}
-
-function showHint() {
-  if (game.game_over() || botThinking || game.turn() !== 'w') return;
-  getEngineMoves(game.fen(), 200).then(res => {
-    if (res.moves.length > 0) {
-      bestMoveHint = { from: res.moves[0].slice(0,2), to: res.moves[0].slice(2,4) };
-      renderBoard();
-    }
-  });
+  analyzePosition(); // Пересчитываем подсказку для отмененной позиции
 }
 
 // Мгновенный старт

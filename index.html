@@ -3,89 +3,593 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Шахматный помощник</title>
+<title>Шахматы — Stockfish</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
 <style>
-  body{font-family:sans-serif;background:#222;color:#eee;display:flex;flex-direction:column;align-items:center}
-  #board{display:grid;grid-template-columns:repeat(8,48px);grid-template-rows:repeat(8,48px);margin:10px}
-  .sq{display:flex;align-items:center;justify-content:center;font-size:34px;cursor:pointer;user-select:none}
-  .light{background:#f0d9b5}.dark{background:#b58863}
-  .sel{outline:3px solid #ff0}.best{outline:3px solid #0f0}
-  button{margin:4px;padding:8px 14px;font-size:16px}
-  #status{margin:6px;font-size:18px}
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: radial-gradient(circle at 50% 0%, #2a2a35 0%, #151518 100%);
+    color: #eee;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 0;
+    padding: 16px;
+    min-height: 100vh;
+  }
+  h2 { margin: 0 0 10px; letter-spacing: 1px; color: #f0d9b5; }
+
+  #status {
+    font-size: 16px;
+    padding: 8px 18px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 10px;
+    margin: 6px 0;
+    min-width: 280px;
+    text-align: center;
+    transition: background 0.3s;
+  }
+
+  #quality {
+    font-size: 15px;
+    font-weight: 700;
+    padding: 7px 18px;
+    border-radius: 8px;
+    margin: 6px 0;
+    display: none;
+    text-align: center;
+    animation: pop 0.25s ease-out;
+    letter-spacing: 0.5px;
+  }
+  @keyframes pop {
+    from { transform: scale(0.7); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+  }
+  .quality-excellent  { background: linear-gradient(135deg,#1b5e20,#2e7d32); color: #a5f5b5; }
+  .quality-good       { background: linear-gradient(135deg,#33691e,#558b2f); color: #dcedc8; }
+  .quality-neutral    { background: linear-gradient(135deg,#37474f,#546e7a); color: #cfd8dc; }
+  .quality-inaccuracy { background: linear-gradient(135deg,#e65100,#fb8c00); color: #fff3e0; }
+  .quality-mistake    { background: linear-gradient(135deg,#c62828,#e53935); color: #ffcdd2; }
+  .quality-blunder    { background: linear-gradient(135deg,#7f0000,#b71c1c); color: #ffcdd2; border: 1px solid #f44336; }
+
+  #board-wrap {
+    position: relative;
+    padding: 24px 10px 24px 26px;
+    background: #1a1a1f;
+    border-radius: 12px;
+    box-shadow: 0 14px 44px rgba(0,0,0,0.65), inset 0 1px 0 rgba(255,255,255,0.05);
+    margin: 10px 0;
+  }
+  #board {
+    display: grid;
+    grid-template-columns: repeat(8, 58px);
+    grid-template-rows: repeat(8, 58px);
+    border-radius: 4px;
+    overflow: hidden;
+    box-shadow: 0 0 0 2px #0e0e12;
+  }
+  .sq {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 42px;
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.12s ease, filter 0.12s ease;
+    text-shadow: 1px 1px 3px rgba(0,0,0,0.35);
+  }
+  .light { background: #f0d9b5; }
+  .dark  { background: #b58863; }
+  .sq:hover { filter: brightness(1.06); }
+
+  .sq.sel       { box-shadow: inset 0 0 0 4px #ffd700; }
+  .sq.last-move { background-image: linear-gradient(rgba(255,215,0,0.42), rgba(255,215,0,0.42)); }
+  .sq.hint-move { box-shadow: inset 0 0 0 4px #00e676; }
+  .sq.in-check  { background-image: linear-gradient(rgba(244,67,54,0.7), rgba(244,67,54,0.7)); }
+
+  .move-dot {
+    position: absolute;
+    width: 22%;
+    height: 22%;
+    border-radius: 50%;
+    background: rgba(0,0,0,0.32);
+    pointer-events: none;
+  }
+  .move-capture {
+    position: absolute;
+    inset: 3px;
+    border-radius: 50%;
+    border: 5px solid rgba(0,0,0,0.28);
+    pointer-events: none;
+  }
+
+  .coord-file, .coord-rank {
+    position: absolute;
+    font-size: 11px;
+    font-weight: 700;
+    pointer-events: none;
+    user-select: none;
+    opacity: 0.7;
+  }
+  .light .coord-file, .light .coord-rank { color: #8a6d4b; }
+  .dark  .coord-file, .dark  .coord-rank { color: #f5e6cf; }
+  .coord-file { bottom: 2px; right: 4px; }
+  .coord-rank { top: 2px; left: 4px; }
+
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+    max-width: 620px;
+    margin-top: 6px;
+  }
+  button {
+    padding: 10px 16px;
+    font-size: 14px;
+    font-weight: 600;
+    border: none;
+    border-radius: 8px;
+    background: linear-gradient(180deg, #4a4a55, #35353d);
+    color: #eee;
+    cursor: pointer;
+    transition: transform 0.1s, background 0.2s, box-shadow 0.2s;
+    box-shadow: 0 2px 0 #0e0e12, 0 4px 12px rgba(0,0,0,0.35);
+  }
+  button:hover { background: linear-gradient(180deg,#5a5a66,#41414a); }
+  button:active { transform: translateY(1px); box-shadow: 0 1px 0 #0e0e12; }
+  button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  #engine-status {
+    font-size: 12px;
+    color: #888;
+    margin-top: 12px;
+    text-align: center;
+  }
 </style>
 </head>
 <body>
-<h2>Шахматный помощник</h2>
-<div id="status"></div>
-<div id="board"></div>
-<button onclick="showBest()">Лучший ход</button>
-<button onclick="reset()">Новая игра</button>
-<script>
-const PIECES={wk:'♔',wq:'♕',wr:'♖',wb:'♗',wn:'♘',wp:'♙',bk:'♚',bq:'♛',br:'♜',bb:'♝',bn:'♞',bp:'♟'};
-const VAL={p:100,n:320,b:330,r:500,q:900,k:0};
-let game=new Chess(), selected=null, bestMove=null;
+<h2>♟ Шахматы</h2>
+<div id="status">Загрузка движка…</div>
+<div id="quality"></div>
+<div id="board-wrap"><div id="board"></div></div>
+<div class="controls">
+  <button id="btn-new" onclick="resetGame()">🔄 Новая игра</button>
+  <button id="btn-undo" onclick="undoMove()">↶ Ход назад</button>
+  <button id="btn-flip" onclick="flipBoard()">🔃 Перевернуть</button>
+  <button id="btn-color" onclick="switchColor()">⚫ Играть за чёрных</button>
+  <button id="btn-hint" onclick="showHint()">💡 Подсказка</button>
+</div>
+<div id="engine-status">Инициализация…</div>
 
-function render(){
-  const b=document.getElementById('board'); b.innerHTML='';
-  game.board().forEach((row,r)=>row.forEach((cell,c)=>{
-    const sq=document.createElement('div');
-    const name='abcdefgh'[c]+(8-r);
-    sq.className='sq '+(((r+c)%2)?'dark':'light');
-    if(selected===name)sq.classList.add('sel');
-    if(bestMove&&(bestMove.from===name||bestMove.to===name))sq.classList.add('best');
-    sq.textContent=cell?PIECES[cell.color+cell.type]:'';
-    sq.onclick=()=>click(name);
-    b.appendChild(sq);
-  }));
-  const s=document.getElementById('status');
-  s.textContent=game.game_over()?'Игра окончена':'Ход: '+(game.turn()==='w'?'белых':'чёрных');
-}
-function click(name){
-  if(selected){
-    const m=game.move({from:selected,to:name,promotion:'q'});
-    if(m){selected=null;bestMove=null;render();return;}
+<script>
+/* ============================================================
+   Константы и состояние
+   ============================================================ */
+const PIECES = {
+  wk:'♔', wq:'♕', wr:'♖', wb:'♗', wn:'♘', wp:'♙',
+  bk:'♚', bq:'♛', br:'♜', bb:'♝', bn:'♞', bp:'♟'
+};
+const PIECE_VALUE = { p:100, n:320, b:330, r:500, q:900, k:20000 };
+
+let game = new Chess();
+let selectedSquare   = null;
+let lastMoveSquares  = [];
+let bestMoveHint     = null;
+let playerColor      = 'w';     // за кого играет человек
+let boardFlipped     = false;   // перевёрнута ли доска
+let botThinking      = false;
+let legalTargets     = [];      // { to, capture } для подсветки
+
+let previousBotScore = null;    // оценка с точки зрения бота
+
+/* ---- Stockfish ---- */
+let stockfish           = null;
+let engineReady         = false;
+let engineFailed        = false;
+let currentSearchResolve = null;
+let searchTimerId       = null;
+let multiPVLines        = {};
+let lastPrimaryScore    = null;
+
+/* ============================================================
+   Инициализация движка
+   ============================================================ */
+function initStockfish() {
+  const st = document.getElementById('engine-status');
+  try {
+    stockfish = new Worker('https://cdn.jsdelivr.net/npm/stockfish.js@10.0.2/stockfish.js');
+
+    stockfish.onerror = (e) => {
+      console.error('Stockfish error:', e);
+      engineFailed = true;
+      st.textContent = '⚠ Движок не загрузился. Используется резервная логика.';
+    };
+    stockfish.onmessage = (ev) => handleEngineMessage(ev.data);
+
+    stockfish.postMessage('uci');
+    stockfish.postMessage('isready');
+  } catch (e) {
+    console.error('Cannot create Stockfish worker:', e);
+    engineFailed = true;
+    st.textContent = '⚠ Движок не загрузился. Используется резервная логика.';
   }
-  const p=game.get(name);
-  selected=(p&&p.color===game.turn())?name:null;
-  render();
 }
-function evaluate(){
-  if(game.in_checkmate())return -9999;
-  if(game.in_draw())return 0;
-  let s=0;
-  game.board().forEach(row=>row.forEach(c=>{if(c)s+=(c.color==='w'?1:-1)*VAL[c.type];}));
-  return game.turn()==='w'?s:-s;
-}
-function negamax(depth,alpha,beta){
-  if(depth===0)return evaluate();
-  const moves=game.moves();
-  if(moves.length===0)return game.in_check()?-9999-depth:0;
-  let best=-Infinity;
-  for(const m of moves){
-    game.move(m);
-    best=Math.max(best,-negamax(depth-1,-beta,-alpha));
-    game.undo();
-    alpha=Math.max(alpha,best);
-    if(alpha>=beta)break;
+
+function handleEngineMessage(line) {
+  if (typeof line !== 'string') return;
+  const st = document.getElementById('engine-status');
+
+  if (line === 'uciok') {
+    stockfish.postMessage('setoption name Skill Level value 2');
+    stockfish.postMessage('setoption name MultiPV value 3');
+    stockfish.postMessage('setoption name UCI_LimitStrength value true');
+    stockfish.postMessage('setoption name UCI_Elo value 1300');
+    stockfish.postMessage('isready');
+    return;
   }
-  return best;
-}
-function showBest(){
-  if(game.game_over())return;
-  let best=null,val=-Infinity;
-  for(const m of game.moves({verbose:true})){
-    game.move(m);
-    const v=-negamax(2,-Infinity,Infinity);
-    game.undo();
-    if(v>val){val=v;best=m;}
+  if (line === 'readyok') {
+    if (!engineReady) {
+      engineReady = true;
+      st.textContent = '✅ Stockfish готов · уровень ~1300 Elo';
+    }
+    return;
   }
-  bestMove=best;
-  document.getElementById('status').textContent='Лучший ход: '+best.san;
-  render();
+
+  if (line.startsWith('info') && line.includes('multipv')) {
+    const mp = line.match(/multipv\s+(\d+)/);
+    const sc = line.match(/score\s+(cp|mate)\s+(-?\d+)/);
+    const pv = line.match(/pv\s+([a-h][1-8][a-h][1-8][qrbn]?)/);
+    if (mp && pv) {
+      const n = parseInt(mp[1], 10);
+      let score = 0;
+      if (sc) {
+        score = parseInt(sc[2], 10);
+        if (sc[1] === 'mate') {
+          score = score > 0 ? 100000 - Math.abs(score) : -100000 + Math.abs(score);
+        }
+      }
+      multiPVLines[n] = { move: pv[1], score };
+    }
+    return;
+  }
+
+  if (line.startsWith('bestmove')) {
+    if (searchTimerId) { clearTimeout(searchTimerId); searchTimerId = null; }
+
+    const parts = line.split(/\s+/);
+    const bestMove = parts[1];
+    const candidates = Object.values(multiPVLines)
+      .sort((a, b) => b.score - a.score)
+      .map(x => x.move);
+
+    if (candidates.length === 0 && bestMove && bestMove !== '(none)') {
+      candidates.push(bestMove);
+    }
+
+    const primary = multiPVLines[1];
+    lastPrimaryScore = primary ? primary.score : null;
+
+    if (currentSearchResolve) {
+      currentSearchResolve({ moves: candidates, score: lastPrimaryScore });
+      currentSearchResolve = null;
+    }
+    multiPVLines = {};
+  }
 }
-function reset(){game=new Chess();selected=null;bestMove=null;render();}
-render();
-</script>
-</body>
-</html>
+
+function getEngineMoves(fen, movetime = 120) {
+  return new Promise((resolve) => {
+    if (!engineReady || engineFailed || !stockfish) {
+      // Резервная логика
+      const fb = getBestMoveFallback(game, 2);
+      if (fb) {
+        resolve({ moves: [fb.from + fb.to + (fb.promotion || '')], score: null });
+      } else {
+        resolve({ moves: [], score: null });
+      }
+      return;
+    }
+
+    if (currentSearchResolve) {
+      // Отменяем предыдущий поиск
+      stockfish.postMessage('stop');
+      currentSearchResolve = null;
+    }
+
+    multiPVLines = {};
+    lastPrimaryScore = null;
+
+    currentSearchResolve = (result) => {
+      if (searchTimerId) { clearTimeout(searchTimerId); searchTimerId = null; }
+      resolve(result);
+    };
+
+    stockfish.postMessage('position fen ' + fen);
+    stockfish.postMessage('go movetime ' + movetime);
+
+    searchTimerId = setTimeout(() => {
+      stockfish.postMessage('stop');
+    }, movtime_safe(movetime) + 2000);
+  });
+}
+function movtime_safe(v) { return v; }
+
+/* ============================================================
+   Отрисовка доски
+   ============================================================ */
+function renderBoard() {
+  const boardEl = document.getElementById('board');
+  boardEl.innerHTML = '';
+
+  const grid = game.board();
+  const checkSquare = getCheckKingSquare();
+
+  for (let dr = 0; dr < 8; dr++) {
+    for (let dc = 0; dc < 8; dc++) {
+      const r = boardFlipped ? 7 - dr : dr;
+      const c = boardFlipped ? 7 - dc : dc;
+      const file = 'abcdefgh'[c];
+      const rank = 8 - r;
+      const squareName = file + rank;
+
+      const sq = document.createElement('div');
+      sq.className = 'sq ' + ((r + c) % 2 === 0 ? 'light' : 'dark');
+      sq.dataset.square = squareName;
+
+      if (selectedSquare === squareName) sq.classList.add('sel');
+      if (lastMoveSquares.includes(squareName)) sq.classList.add('last-move');
+      if (checkSquare === squareName) sq.classList.add('in-check');
+      if (bestMoveHint && (bestMoveHint.from === squareName || bestMoveHint.to === squareName))
+        sq.classList.add('hint-move');
+
+      // Подсветка легальных ходов для выбранной фигуры
+      const targetInfo = legalTargets.find(t => t.to === squareName);
+      if (targetInfo) {
+        const mark = document.createElement('div');
+        mark.className = targetInfo.capture ? 'move-capture' : 'move-dot';
+        sq.appendChild(mark);
+      }
+
+      // Координаты
+      if (dr === 7) {
+        const f = document.createElement('span');
+        f.className = 'coord-file';
+        f.textContent = file;
+        sq.appendChild(f);
+      }
+      if (dc === 0) {
+        const rk = document.createElement('span');
+        rk.className = 'coord-rank';
+        rk.textContent = rank;
+        sq.appendChild(rk);
+      }
+
+      // Фигура
+      const piece = grid[r][c];
+      if (piece) {
+        const span = document.createElement('span');
+        span.textContent = PIECES[piece.color + piece.type] || '';
+        sq.appendChild(span);
+      }
+
+      sq.addEventListener('click', () => onSquareClick(squareName));
+      boardEl.appendChild(sq);
+    }
+  }
+
+  updateStatus();
+}
+
+function getCheckKingSquare() {
+  if (!game.in_check()) return null;
+  const turn = game.turn();
+  const grid = game.board();
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      const p = grid[r][c];
+      if (p && p.type === 'k' && p.color === turn) {
+        return 'abcdefgh'[c] + (8 - r);
+      }
+    }
+  }
+  return null;
+}
+
+function updateStatus() {
+  const el = document.getElementById('status');
+  if (game.game_over()) {
+    if (game.in_checkmate()) {
+      const loser = game.turn();
+      el.textContent = '♛ Мат! ' + (loser === 'w' ? 'Победили чёрные' : 'Победили белые');
+    } else if (game.in_draw()) {
+      el.textContent = '½ Ничья';
+    } else {
+      el.textContent = 'Игра окончена';
+    }
+  } else {
+    const turnName = game.turn() === 'w' ? 'белых' : 'чёрных';
+    const youPlay = game.turn() === playerColor ? ' (ваш ход)' : '';
+    el.textContent = 'Ход ' + turnName + youPlay;
+  }
+}
+
+/* ============================================================
+   Клики по доске
+   ============================================================ */
+function onSquareClick(square) {
+  if (game.game_over() || botThinking) return;
+  if (game.turn() !== playerColor) return; // сейчас не ваш ход
+
+  // Попытка сделать ход
+  if (selectedSquare) {
+    const move = game.move({
+      from: selectedSquare,
+      to: square,
+      promotion: 'q'
+    });
+    if (move) {
+      selectedSquare = null;
+      legalTargets = [];
+      bestMoveHint = null;
+      lastMoveSquares = [move.from, move.to];
+      hideQuality();
+      renderBoard();
+
+      if (!game.game_over() && game.turn() !== playerColor) {
+        doBotMove();
+      }
+      return;
+    }
+  }
+
+  // Выбор фигуры
+  const piece = game.get(square);
+  if (piece && piece.color === playerColor) {
+    selectedSquare = square;
+    legalTargets = game.moves({ square, verbose: true }).map(m => ({
+      to: m.to,
+      capture: !!m.captured
+    }));
+  } else {
+    selectedSquare = null;
+    legalTargets = [];
+  }
+  renderBoard();
+}
+
+/* ============================================================
+   Ход бота
+   ============================================================ */
+async function doBotMove() {
+  if (botThinking || game.game_over() || game.turn() === playerColor) return;
+
+  botThinking = true;
+  document.getElementById('status').textContent = '🤔 Бот думает…';
+
+  const scoreBefore = previousBotScore;
+
+  try {
+    const result = await getEngineMoves(game.fen(), 120);
+
+    if (game.game_over() || game.turn() === playerColor) {
+      // Состояние изменилось — выходим
+      return;
+    }
+
+    let moveStr = null;
+    if (result.moves.length > 0) {
+      moveStr = pickMoveWithRandomness(result.moves);
+    }
+
+    if (!moveStr) {
+      // Резервный вариант
+      const fb = getBestMoveFallback(game, 2);
+      if (fb) moveStr = fb.from + fb.to + (fb.promotion || '');
+    }
+    if (!moveStr) {
+      // Совсем крайний случай
+      const ms = game.moves();
+      if (ms.length > 0) moveStr = ms[Math.floor(Math.random() * ms.length)];
+    }
+
+    if (moveStr && typeof moveStr === 'string' && moveStr.length >= 4) {
+      const mv = game.move({
+        from: moveStr.slice(0, 2),
+        to: moveStr.slice(2, 4),
+        promotion: moveStr.length > 4 ? moveStr[4] : 'q'
+      });
+      if (mv) {
+        lastMoveSquares = [mv.from, mv.to];
+        previousBotScore = (result.score != null) ? result.score : null;
+      }
+    }
+  } catch (err) {
+    console.error('Bot move error:', err);
+    // Аварийный резерв
+    const fb = getBestMoveFallback(game, 2);
+    if (fb) {
+      const mv = game.move(fb);
+      if (mv) { lastMoveSquares = [mv.from, mv.to]; previousBotScore = null; }
+    }
+  } finally {
+    botThinking = false;
+    selectedSquare = null;
+    legalTargets = [];
+    renderBoard();
+
+    // Показ качества хода игрока (сравниваем "до" и "после")
+    if (scoreBefore !== null && previousBotScore !== null) {
+      const loss = previousBotScore - scoreBefore;
+      showQuality(loss);
+    }
+  }
+}
+
+/* ============================================================
+   Выбор хода (случайность + защита от зевка мата)
+   ============================================================ */
+function pickMoveWithRandomness(candidates) {
+  if (!candidates || candidates.length === 0) return null;
+  if (candidates.length === 1) return candidates[0];
+
+  // Отбрасываем явные зевки (мат в 1)
+  const safe = candidates.filter(mv => {
+    try {
+      const test = new Chess(game.fen());
+      const obj = {
+        from: mv.slice(0, 2),
+        to: mv.slice(2, 4),
+        promotion: mv.length > 4 ? mv[4] : 'q'
+      };
+      const ok = test.move(obj);
+      if (!ok) return false;
+      if (test.game_over()) return true;
+      const opp = test.moves({ verbose: true });
+      for (const om of opp) {
+        test.move(om);
+        const mate = test.in_checkmate();
+        test.undo();
+        if (mate) return false;
+      }
+      return true;
+    } catch (e) { return false; }
+  });
+
+  const pool = safe.length > 0 ? safe : candidates;
+
+  // В 20% случаев берём не лучший, а 2-й/3-й
+  if (Math.random() < 0.20 && pool.length > 1) {
+    const idx = 1 + Math.floor(Math.random() * Math.min(2, pool.length - 1));
+    return pool[idx];
+  }
+  return pool[0];
+}
+
+/* ============================================================
+   Индикатор качества хода
+   ============================================================ */
+function showQuality(lossCp) {
+  const el = document.getElementById('quality');
+  let text, cls;
+
+  if (lossCp <= -30)      { text = '🌟 Отличный ход!';      cls = 'quality-excellent'; }
+  else if (lossCp <= 10)  { text = '👍 Хороший ход';        cls = 'quality-good'; }
+  else if (lossCp <= 50)  { text = '😐 Нормально';          cls = 'quality-neutral'; }
+  else if (lossCp <= 150) { text = '⚠️ Неточность';         cls = 'quality-inaccuracy'; }
+  else if (lossCp <= 300) { text = '❌ Ошибка';             cls = 'quality-mistake'; }
+  else                    { text = '💩 Полная хуйня';       cls = 'quality-blunder'; }
+
+  el.textContent = text;
+  el.className = cls;
+  el.style.display = 'inline-block';
+}
+function hideQuality() {
+  const el = document.getElementById('quality');
+  el.style.display = 'none';
+}
+
+/* ============================================================
+   Резервная оценка
